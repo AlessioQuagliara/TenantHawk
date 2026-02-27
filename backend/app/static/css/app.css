@@ -1,0 +1,10 @@
+/* Nasconde gli elementi con l'attributo x‑cloak finché Alpine non li inizializza.
+ * Questo previene il flash di componenti non ancora montati.
+ */
+[x-cloak] {
+  display: none !important;
+}
+
+/* Qui puoi definire altre regole globali, ad esempio override per componenti
+   o variabili di colore personalizzate. Tenendo tutto qui, rendi più semplice
+   gestire lo stile in un unico punto. */

@@ -1,0 +1,22 @@
+{% extends "admin/base.html" %}
+
+{% from "components/buttons.html" import primary, secondary %}
+
+{% block admin_title %}Utenti{% endblock %}
+
+{% block page_actions %}
+  {{ primary("Nuovo utente", attrs={"hx-get": "/admin/users/new", "hx-target": "#modal-container", "hx-swap": "innerHTML"}) }}
+{% endblock %}
+
+{% block admin_content %}
+<div class="space-y-6">
+  <!-- Tabella con filtri integrati -->
+  {% include "admin/partials/table.html" %}
+</div>
+
+<!-- Modal container -->
+<div id="modal-container"></div>
+{% endblock %}
+  });
+</script>
+{% endblock %}

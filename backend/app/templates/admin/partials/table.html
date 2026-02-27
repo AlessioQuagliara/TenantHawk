@@ -1,0 +1,92 @@
+<!-- ======================================================================================= -->
+<!-- backend/app/templates/admin/partials/table -->
+<!-- ======================================================================================= -->
+
+<!-- Parziale tabella users (caricato via HTMX) -->
+
+{% from "components/table.html" import data_table %}
+{% from "components/badges.html" import success, warning, danger %}
+
+{% set columns = [
+  {
+    'key': 'name',
+    'label': 'Nome',
+    'sortable': true
+  },
+  {
+    'key': 'email',
+    'label': 'Email',
+    'sortable': true
+  },
+  {
+    'key': 'role',
+    'label': 'Ruolo',
+    'render': lambda row: '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">' + ('Admin' if row.get('role') == 'admin' else 'Utente') + '</span>'
+  },
+  {
+    'key': 'status',
+    'label': 'Stato',
+    'render': lambda row: '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ' + 
+      ('bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' if row.get('status') == 'active' else 
+       'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' if row.get('status') == 'pending' else 
+       'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200') + '">' + 
+      {'active': 'Attivo', 'pending': 'In sospeso', 'inactive': 'Inattivo'}.get(row.get('status', ''), row.get('status', '-')) + 
+      '</span>'
+  },
+  {
+    'key': 'created_at',
+    'label': 'Registrato',
+    'align': 'right'
+  }
+] %}
+
+{% set config = {
+  'selectable': true,
+  'searchable': true,
+  'search_placeholder': 'Cerca per nome o email...',
+  'empty_message': 'Nessun utente trovato',
+  'filters': [
+    {
+      'name': 'role',
+      'label': 'Ruolo',
+      'type': 'select',
+      'placeholder': 'Tutti i ruoli',
+      'options': [
+        {'value': 'admin', 'label': 'Admin'},
+        {'value': 'user', 'label': 'Utente'}
+      ]
+    },
+    {
+      'name': 'status',
+      'label': 'Stato',
+      'type': 'select',
+      'placeholder': 'Tutti gli stati',
+      'options': [
+        {'value': 'active', 'label': 'Attivo'},
+        {'value': 'pending', 'label': 'In sospeso'},
+        {'value': 'inactive', 'label': 'Inattivo'}
+      ]
+    }
+  ],
+  'bulk_actions': [
+    {
+      'label': 'Elimina selezionati',
+      'endpoint': '/admin/users/bulk-delete',
+      'method': 'POST',
+      'class': 'text-white bg-red-600 hover:bg-red-700',
+      'confirm': "confirm('Confermi l\\'eliminazione degli utenti selezionati?')"
+    }
+  ],
+  'per_page_options': [10, 25, 50, 100]
+} %}
+
+{{ data_table(
+  id="users-table",
+  endpoint="/admin/users/table",
+  columns=columns,
+  rows=users,
+  pagination=pagination,
+  config=config,
+  current_filters=current_filters | default({}),
+  search_value=search_value | default('')
+) }}

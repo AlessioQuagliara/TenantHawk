@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+asyncpg
+alembic
+python-dotenv
+psycopg2-binary ; sys_platform == "darwin" 
+SQLAlchemy
+pydantic
+pydantic-settings
+Jinja2
+python-multipart

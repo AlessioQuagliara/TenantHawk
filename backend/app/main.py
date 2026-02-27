@@ -1,33 +1,115 @@
-import sentry_sdk
+# =============================================================================
+# backend/app/main
+# =============================================================================
+
+"""
+Import di base ================================================================
+"""
+
+from fastapi.staticfiles import StaticFiles
+
+from app.core import settings
+
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
-from fastapi.routing import APIRoute
-from starlette.middleware.cors import CORSMiddleware
 
-from app.api.main import api_router
-from app.core.config import settings
+from app.core import engine
+
+from app.routes import router as api_router
+
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+
+# =============================================================================
+
+""" 
+LifeSpanner = serve a definire in modo pulito cosa deve succedere =============
+all’avvio dell’app e allo spegnimento =========================================
+"""
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+        """Hook di startup/shutdown.
+
+        Mantieni il codice async-friendly: crea pool/client qui 
+        (DB, Redis, ecc.) e chiudili all'arresto.
+        """
+        # --- STARTUP ---
+        # Esempi di placeholder:
+        # app.state.db = await create_db_pool(...)
+        # app.state.redis = await create_redis_pool(...)
+        app.state.engine = engine
+
+        yield
+        # --- SHUTDOWN ---
+        # Esempi di placeholder:
+        # await app.state.redis.aclose()
+        # await app.state.db.close()
+        await engine.dispose()
+
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+
+# =============================================================================
+
+""" 
+create_app() è “la fabbrica” che monta l’app completa =========================
+(config + lifecycle + rotte) in modo pulito e scalabile =======================
+"""
+
+def create_app() -> FastAPI:
+        app = FastAPI(
+                title="SaaS_Template",
+                version="0.1.0",
+                lifespan=lifespan,
+                docs_url="/docs",
+                redoc_url="/redoc",
+                openapi_url="/openapi.json",
+        )
+        
+        app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+        # Healthcheck (async)
+        @app.get("/health", tags=["system"])
+        async def health() -> dict[str, str]:
+                return {"status": "ok"}
+
+        # Includi router (mantieni la resilienza mentre supporti le cartelle)
+        #try:
+        #        # Preferisci un singolo aggregatore di router api se lo hai
+        #        from app.routes import router as api_router 
+        #
+        #        app.include_router(api_router)
+        #except Exception:
+        #        # Se il package routes non è ancora pronto, l'app gira comunque
+        #        pass
+
+        app.include_router(api_router)
+
+        return app
 
 
-def custom_generate_unique_id(route: APIRoute) -> str:
-    return f"{route.tags[0]}-{route.name}"
+# =============================================================================
 
+""" 
+App ASGI per uvicorn/gunicorn =================================================
+"""
 
-if settings.SENTRY_DSN and settings.ENVIRONMENT != "local":
-    sentry_sdk.init(dsn=str(settings.SENTRY_DSN), enable_tracing=True)
+app = create_app()
 
-app = FastAPI(
-    title=settings.PROJECT_NAME,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json",
-    generate_unique_id_function=custom_generate_unique_id,
-)
+if __name__ == "__main__":
+    import uvicorn
 
-# Set all CORS enabled origins
-if settings.all_cors_origins:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.all_cors_origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+    uvicorn.run(
+        "app.main:app",
+        host=settings.host,
+        port=settings.port,
+        reload=settings.reload,
+        workers=settings.workers,
+        log_level="info",
+        proxy_headers=True,
+        forwarded_allow_ips="*",
     )
-
-app.include_router(api_router, prefix=settings.API_V1_STR)

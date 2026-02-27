@@ -1,0 +1,90 @@
+<!-- ======================================================================================= -->
+<!-- backend/app/templates/admin/partials -->
+<!-- ======================================================================================= -->
+
+<aside class="hidden lg:flex lg:w-72 lg:flex-col lg:fixed lg:inset-y-0">
+  <div class="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-6 pb-4">
+    
+    <!-- Brand -->
+    <div class="h-16 flex items-center gap-2 border-b border-gray-200 dark:border-gray-800">
+      <img src="{{ url_for('static', path='/images/mini-logo.svg') }}" class="h-8 w-8" alt="">
+      <span class="font-semibold text-gray-900 dark:text-gray-100">SaaS Template</span>
+    </div>
+
+    <!-- Nav -->
+    <nav class="flex flex-1 flex-col">
+      <ul role="list" class="flex flex-1 flex-col gap-y-2">
+
+        <!-- Group -->
+        <li>
+          <div class="text-xs font-semibold tracking-wide text-gray-500 dark:text-gray-400 uppercase">
+            Overview
+          </div>
+          <ul role="list" class="mt-2 space-y-1">
+
+            {% set active = request.url.path.startswith('/admin/dashboard') %}
+            <li>
+              <a href="/admin/dashboard"
+                 class="group flex items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-medium
+                        {% if active %}
+                          bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white
+                        {% else %}
+                          text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800
+                        {% endif %}">
+                <i class="fas fa-chart-pie w-5 h-5 text-gray-400"></i>
+                Dashboard
+              </a>
+            </li>
+
+          </ul>
+        </li>
+
+        <!-- Group -->
+        <li>
+          <ul role="list">
+            {% set active = request.url.path.startswith('/admin/users') %}
+            <li>
+              <a href="/admin/users"
+                 class="group flex items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-medium
+                        {% if active %}
+                          bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white
+                        {% else %}
+                          text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800
+                        {% endif %}">
+                <i class="fa-solid fa-users w-5 h-5 text-gray-400"></i>
+                Utenti
+              </a>
+            </li>
+
+          </ul>
+        </li>
+
+        <!--Copia e incolla il groups-->
+
+        <!-- Footer -->
+        <li class="mt-auto pt-4 border-t border-gray-200 dark:border-gray-800">
+          <div class="flex items-center justify-between relative" x-data="{ open: false }">
+            <button @click="open = !open" class="flex-1 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 px-2 py-2 rounded">
+              <div class="font-medium">User</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400">Role</div>
+            </button>
+            {% include "components/theme_selector.html" %}
+            
+            <!-- Dropdown Menu -->
+            <div @click.away="open = false" x-show="open" x-transition class="absolute bottom-16 left-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 w-48">
+              <a href="#" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+                <i class="fas fa-cog mr-2"></i> Impostazioni utente
+              </a>
+              <form action="/auth/logout" method="post" class="block">
+                <button type="submit" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 border-t border-gray-200 dark:border-gray-700">
+                  <i class="fas fa-sign-out-alt mr-2"></i> Logout
+                </button>
+              </form>
+            </div>
+          </div>
+        </li>
+
+      </ul>
+    </nav>
+  </div>
+</aside>

@@ -1,45 +1,30 @@
-FROM python:3.10
+# =============================================================================
+# backend/Dockerfile
+# =============================================================================
 
+# Base immagine leggera di python
+FROM python:3.11-slim
+
+# Evita creazione di file binari strani
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Evita buffering
 ENV PYTHONUNBUFFERED=1
 
-# Install uv
-# Ref: https://docs.astral.sh/uv/guides/integration/docker/#installing-uv
-COPY --from=ghcr.io/astral-sh/uv:0.9.26 /uv /uvx /bin/
+# Prende la directory /app per i comandi
+WORKDIR /app
 
-# Compile bytecode
-# Ref: https://docs.astral.sh/uv/guides/integration/docker/#compiling-bytecode
-ENV UV_COMPILE_BYTECODE=1
+# requirements.txt da installare all'avvio
+COPY requirements.txt /app/
 
-# uv Cache
-# Ref: https://docs.astral.sh/uv/guides/integration/docker/#caching
-ENV UV_LINK_MODE=copy
 
-WORKDIR /app/
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Place executables in the environment at the front of the path
-# Ref: https://docs.astral.sh/uv/guides/integration/docker/#using-the-environment
-ENV PATH="/app/.venv/bin:$PATH"
+# Copia solo la cartella /app senza copiare .venv o requirements.txt
+COPY app /app/app
 
-# Install dependencies
-# Ref: https://docs.astral.sh/uv/guides/integration/docker/#intermediate-layers
-RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=uv.lock,target=uv.lock \
-    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --no-install-workspace --package app
+# Esponi su porta 8000
+EXPOSE 8000
 
-COPY ./backend/scripts /app/backend/scripts
-
-COPY ./backend/pyproject.toml ./backend/alembic.ini /app/backend/
-
-COPY ./backend/app /app/backend/app
-
-# Sync the project
-# Ref: https://docs.astral.sh/uv/guides/integration/docker/#intermediate-layers
-RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=uv.lock,target=uv.lock \
-    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --package app
-
-WORKDIR /app/backend/
-
-CMD ["fastapi", "run", "--workers", "4", "app/main.py"]
+# Settaggio Uvicorn async, PER ORA CON RELOAD DEV (DA TOGLIERE IN PROD)
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

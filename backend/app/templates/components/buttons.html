@@ -1,0 +1,30 @@
+<!-- ======================================================================================= -->
+<!-- backend/app/templates/components/buttons-->
+<!-- ======================================================================================= -->
+ 
+<!-- Macro per bottoni primari, secondari, pericolo e outline. -->
+
+{% macro primary(text, type="button", attrs={}) %}
+<button type="{{ type }}" class="inline-flex items-center px-4 py-2 bg-primary-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-primary-700 focus:bg-primary-700 active:bg-primary-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150" {{ attrs|xmlattr }}>
+    {{ text }}
+</button>
+{% endmacro %}
+
+{% macro secondary(text, type="button", attrs={}) %}
+<button type="{{ type }}" class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-500 rounded-md font-semibold text-xs text-gray-700 dark:text-gray-300 uppercase tracking-widest shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:opacity-25 transition ease-in-out duration-150" {{ attrs|xmlattr }}>
+    {{ text }}
+</button>
+{% endmacro %}
+
+{% macro danger(text, type="button", attrs={}) %}
+<button type="{{ type }}" class="inline-flex items-center px-4 py-2 bg-red-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-red-700 active:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150" {{ attrs|xmlattr }}>
+    {{ text }}
+</button>
+{% endmacro %}
+
+
+{% macro outline(text, type="button", attrs={}) %}
+<button type="{{ type }}" class="inline-flex items-center px-4 py-2 bg-transparent border border-gray-300 dark:border-gray-500 rounded-md font-semibold text-xs text-gray-700 dark:text-gray-300 uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:opacity-25 transition ease-in-out duration-150" {{ attrs|xmlattr }}>
+    {{ text }}
+</button>
+{% endmacro %}

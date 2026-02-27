@@ -1,0 +1,66 @@
+<!-- ======================================================================================= -->
+<!-- backend/app/templates/auth/login -->
+<!-- ======================================================================================= -->
+
+{% extends "auth/base.html" %}
+
+{# Import delle macro necessarie #}
+{% from "components/buttons.html" import primary %}
+{% from "components/forms.html" import input %}
+{% from "components/badges.html" import danger as badge_danger %}
+
+{% block auth_title %}Login{% endblock %}
+{% block auth_heading %}Accedi{% endblock %}
+
+{% block auth_content %}
+<form 
+    hx-post="/auth/login"
+    hx-target="this"
+    hx-swap="outerHTML"
+    method="post"
+    class="space-y-6"
+>
+    {# Mostra errori generali (es. credenziali errate) #}
+    {% if error %}
+        <div class="mb-4">
+            {{ badge_danger(error) }}
+        </div>
+    {% endif %}
+
+    {# Campi nascosti #}
+    <input type="hidden" name="next" value="{{ next or '/' }}">
+
+    {# Campo email #}
+    <div>
+        <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Email
+        </label>
+        {{ input(type="email", name="email", placeholder="tuo@esempio.com", required=true, attrs={"id": "email"}) }}
+    </div>
+
+    {# Campo password #}
+    <div>
+        <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Password
+        </label>
+        {{ input(type="password", name="password", placeholder="••••••••", required=true, attrs={"id": "password"}) }}
+    </div>
+
+    {# Bottone di submit #}
+    <div class="flex items-center justify-between">
+        {{ primary("Accedi", type="submit", attrs={"class": "w-full justify-center"}) }}
+    </div>
+
+    {# Link opzionali #}
+    <div class="text-sm text-center space-y-2">
+        <a href="/auth/password-recovery" class="text-primary-600 hover:text-primary-500 dark:text-primary-400">
+            Password dimenticata?
+        </a>
+        <br>
+        <span class="text-gray-600 dark:text-gray-400">Non hai un account?</span>
+        <a href="/auth/register" class="text-primary-600 hover:text-primary-500 dark:text-primary-400">
+            Registrati
+        </a>
+    </div>
+</form>
+{% endblock %}

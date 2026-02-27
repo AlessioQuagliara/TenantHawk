@@ -1,0 +1,50 @@
+<!-- ======================================================================================= -->
+<!-- backend/app/templates/auth/two_factor -->
+<!-- ======================================================================================= -->
+
+{% extends "auth/base.html" %}
+
+{% from "components/forms.html" import input %}
+{% from "components/buttons.html" import primary %}
+{% from "components/badges.html" import danger as badge_danger %}
+
+{% block auth_title %}Verifica{% endblock %}
+{% block auth_heading %}Codice 2FA{% endblock %}
+
+{% block auth_content %}
+<form 
+    hx-post="/auth/2fa"
+    hx-target="this"
+    hx-swap="outerHTML"
+    method="post"
+    class="space-y-6"
+>
+    {% if error %}
+        <div class="mb-4">
+            {{ badge_danger(error) }}
+        </div>
+    {% endif %}
+
+    <input type="hidden" name="next" value="{{ next }}">
+
+    <div>
+        <label for="code" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Codice di verifica
+        </label>
+        {{ input(type="text", name="code", placeholder="000000", inputmode="numeric", required=true, attrs={"id": "code", "autocomplete": "one-time-code"}) }}
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Inserisci il codice a 6 cifre generato dall'app
+        </p>
+    </div>
+
+    <div>
+        {{ primary("Verifica", type="submit", attrs={"class": "w-full justify-center"}) }}
+    </div>
+
+    <div class="text-sm text-center text-gray-600 dark:text-gray-400">
+        <a href="/auth/login" class="text-primary-600 hover:text-primary-500 dark:text-primary-400">
+            Torna al login
+        </a>
+    </div>
+</form>
+{% endblock %}

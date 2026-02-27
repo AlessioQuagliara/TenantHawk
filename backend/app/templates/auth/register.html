@@ -1,0 +1,66 @@
+<!-- ======================================================================================= -->
+<!-- backend/app/templates/auth/register -->
+<!-- ======================================================================================= -->
+
+{% extends "auth/base.html" %}
+
+{% from "components/forms.html" import input %}
+{% from "components/buttons.html" import primary %}
+{% from "components/badges.html" import danger as badge_danger %}
+
+{% block auth_title %}Registrazione{% endblock %}
+{% block auth_heading %}Crea account{% endblock %}
+
+{% block auth_content %}
+<form 
+    hx-post="/auth/signup"
+    hx-target="this"
+    hx-swap="outerHTML"
+    method="post"
+    class="space-y-6"
+>
+    {# Visualizzazione errori #}
+    {% if error %}
+        <div class="mb-4">
+            {{ badge_danger(error) }}
+        </div>
+    {% endif %}
+
+    {# Campo email #}
+    <div>
+        <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Email
+        </label>
+        {{ input(type="email", name="email", placeholder="tuo@esempio.com", required=true, attrs={"id": "email"}) }}
+    </div>
+
+    {# Campo password #}
+    <div>
+        <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Password
+        </label>
+        {{ input(type="password", name="password", placeholder="••••••••", required=true, attrs={"id": "password"}) }}
+    </div>
+
+    {# Campo conferma password #}
+    <div>
+        <label for="password2" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Conferma password
+        </label>
+        {{ input(type="password", name="password2", placeholder="••••••••", required=true, attrs={"id": "password2"}) }}
+    </div>
+
+    {# Bottone di registrazione #}
+    <div>
+        {{ primary("Registrati", type="submit", attrs={"class": "w-full justify-center"}) }}
+    </div>
+
+    {# Link per login #}
+    <div class="text-sm text-center text-gray-600 dark:text-gray-400">
+        Hai già un account? 
+        <a href="/auth/login" class="text-primary-600 hover:text-primary-500 dark:text-primary-400">
+            Accedi
+        </a>
+    </div>
+</form>
+{% endblock %}
