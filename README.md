@@ -105,6 +105,58 @@ Testato con k6 a 500 utenti virtuali concorrenti su MacBook con Docker:
 
 La verifica password usa bcrypt async con semaphore per non bloccare l'event loop sotto carico.
 
+```bash
+
+
+         /\      Grafana   /‾‾/
+    /\  /  \     |\  __   /  /
+   /  \/    \    | |/ /  /   ‾‾\
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/
+
+
+     execution: local
+        script: test/test_login.js
+        output: -
+
+     scenarios: (100.00%) 1 scenario, 500 max VUs, 1m0s max duration (incl. graceful stop):
+              * default: 500 looping VUs for 30s (gracefulStop: 30s)
+
+
+
+  █ TOTAL RESULTS
+
+    checks_total.......: 72215   2323.018795/s
+    checks_succeeded...: 100.00% 72215 out of 72215
+    checks_failed......: 0.00%   0 out of 72215
+
+    ✓ login status è 303
+    ✓ header Location presente
+    ✓ cookie session_user_id o id_sessione_utente impostato
+    ✓ dashboard status è 200
+    ✓ dashboard contiene HTML
+
+    HTTP
+    http_req_duration..............: avg=28.81ms min=818µs med=8.37ms max=319.56ms p(90)=68.51ms p(95)=82.11ms
+      { expected_response:true }...: avg=28.81ms min=818µs med=8.37ms max=319.56ms p(90)=68.51ms p(95)=82.11ms
+    http_req_failed................: 0.00%  0 out of 28886
+    http_reqs......................: 28886  929.207518/s
+
+    EXECUTION
+    iteration_duration.............: avg=1.05s   min=1s    med=1.03s  max=1.4s     p(90)=1.12s   p(95)=1.15s
+    iterations.....................: 14443  464.603759/s
+    vus............................: 66     min=66         max=500
+    vus_max........................: 500    min=500        max=500
+
+    NETWORK
+    data_received..................: 341 MB 11 MB/s
+    data_sent......................: 5.2 MB 167 kB/s
+
+
+
+
+running (0m31.1s), 000/500 VUs, 14443 complete and 0 interrupted iterations
+```
 
 ## License
 
@@ -113,11 +165,3 @@ MIT
 
 
 ***
-
-Comandi per caricare su git:
-
-```bash
-git add README.md
-git commit -m "docs: aggiorna README con auth, Alembic, CLI seed, performance e note produzione"
-git push origin main
-```
