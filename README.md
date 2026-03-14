@@ -1,6 +1,6 @@
 ![Logo](backend/app/static/images/logo-dark.svg)
 
----
+***
 
 > Template open source per SaaS multi-tenant con costruttore di moduli integrato.
 
@@ -11,7 +11,8 @@ Stack: FastAPI async + SQLAlchemy 2 + asyncpg + Jinja2/HTMX per il backend, Next
 - Routing admin multi-tenant via path: `/{tenant}/admin/...`
 - Autenticazione sicura con Redis session store, CSRF protection e bcrypt async
 - Sistema ruoli granulare per-tenant (un utente può essere admin in un tenant e viewer in un altro)
-- Password recovery funzionante con token temporanei firmati
+- Email transazionali con Resend (conferma account e password recovery funzionanti)
+- Gestione errori HTTP centralizzata con pagine dedicate per area pubblica e admin (401, 403, 404, 500)
 - Admin HTML (Jinja2 + HTMX) con componenti personalizzabili
 - Landing marketing in Next.js
 - Postgres con engine async, connection pooling calibrato per worker
@@ -31,7 +32,7 @@ Stack: FastAPI async + SQLAlchemy 2 + asyncpg + Jinja2/HTMX per il backend, Next
 
 ## Autenticazione e sicurezza
 
-Il login è su `admin.localhost` (senza prefisso tenant) e risolve automaticamente il tenant dell'utente dal database. Dopo il login il browser viene reindirizzato a `/{tenant}/admin/dashboard`. 
+Il login è su `admin.localhost` (senza prefisso tenant) e risolve automaticamente il tenant dell'utente dal database. Dopo il login il browser viene reindirizzato a `/{tenant}/admin/dashboard`.
 
 **Sicurezza implementata:**
 - Sessioni server-side in Redis (non manipolabili dal client)
@@ -60,12 +61,14 @@ Per proteggere route admin:
 from app.core.permessi import richiede_ruolo, solo_superutente
 from app.models import UtenteRuolo
 
+
 @router.get("/users")
 async def lista_utenti(
     _: None = Depends(richiede_ruolo([UtenteRuolo.SUPERUTENTE, UtenteRuolo.COLLABORATORE]))
 ):
     # Solo SUPERUTENTE e COLLABORATORE possono accedere
     ...
+
 
 @router.delete("/users/{id}")
 async def elimina_utente(
@@ -135,15 +138,12 @@ Testato con k6 a 700 utenti virtuali concorrenti (con CSRF + Redis) su MacBook c
 
 La verifica password usa bcrypt async con semaphore per non bloccare l'event loop sotto carico. Redis gestisce tutte le sessioni senza problemi anche con migliaia di utenti concorrenti.
 
-```bash
-
-
+```
          /\      Grafana   /‾‾/
     /\  /  \     |\  __   /  /
    /  \/    \    | |/ /  /   ‾‾\
   /          \   |   (  |  (‾)  |
  / __________ \  |_|\_\  \_____/
-
 
      execution: local
         script: test/test_login.js
@@ -153,12 +153,11 @@ La verifica password usa bcrypt async con semaphore per non bloccare l'event loo
               * default: 700 looping VUs for 30s (gracefulStop: 30s)
 
 
-
   █ TOTAL RESULTS
 
     checks_total.......: 9688    223.040847/s
     checks_succeeded...: 100.00% 9688 out of 9688
-    checks_failed......: 0.00%   0 out of 9688
+    checks_failed.......: 0.00%   0 out of 9688
 
     ✓ login page status è 200
     ✓ login status è 303
@@ -185,37 +184,27 @@ La verifica password usa bcrypt async con semaphore per non bloccare l'event loo
     data_sent......................: 899 kB 21 kB/s
 
 
-
-
 running (0m43.4s), 000/700 VUs, 1384 complete and 0 interrupted iterations
 ```
 
 ## Password recovery
 
-Il flusso di reset password è incopleto, manca la config con una vera mail send, ma per ora:
+Il flusso completo di reset password è implementato con Resend:
 
 1. Utente va su `/auth/password-recovery` e inserisce email
 2. Backend genera token sicuro (valido 1 ora) e lo salva in DB
-3. In dev il link viene mostrato nei log backend,  dopo l'implementazione verrà inviato via email
+3. Email con link di reset viene inviata tramite Resend
 4. Utente clicca link con token e imposta nuova password
 5. Token viene marcato come usato e non può essere riutilizzato
-
-Per vedere il link reset in sviluppo:
-
-```bash
-docker compose logs backend | grep "Reset token"
-# Output: 📧 Link: http://admin.localhost:8000/auth/reset-password?token=...
-```
 
 ## Prossimi step (opzionali)
 
 - Rate limiting login (slowapi per 5 tentativi/minuto)
 - 2FA opzionale con TOTP per admin
-- Email transazionali async (Celery + Redis o FastAPI BackgroundTasks)
 - Session fingerprinting (IP + User-Agent hash per prevenire hijacking)
 - Password policy configurabile (lunghezza min, complessità, storia)
+- Modulo billing (piani, abbonamenti, integrazione provider pagamenti)
 
-Il template è già production-ready al 90%, questi sono miglioramenti per casi d'uso specifici.
 
 ## License
 
