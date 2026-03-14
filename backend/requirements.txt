@@ -14,3 +14,7 @@ bcrypt
 greenlet
 alembic
 gunicorn
+redis
+itsdangerous
+slowapi
+resend

@@ -12,6 +12,8 @@ from sqlalchemy import select
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy.orm import selectinload
+
 from app.core.database import get_db
 
 from app.models import Tenant
@@ -22,7 +24,9 @@ async def prendi_tenant_corrente(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> Tenant:
     result = await db.execute(
-        select(Tenant).where(
+        select(Tenant)
+        .options(selectinload(Tenant.ruoli_utenti))
+        .where(
             Tenant.slug == tenant,
             Tenant.attivo.is_(True),
         )

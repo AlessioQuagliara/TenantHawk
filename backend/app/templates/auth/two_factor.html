@@ -6,7 +6,7 @@
 
 {% from "components/forms.html" import input %}
 {% from "components/buttons.html" import primary %}
-{% from "components/badges.html" import danger as badge_danger %}
+
 
 {% block auth_title %}Verifica{% endblock %}
 {% block auth_heading %}Codice 2FA{% endblock %}
@@ -14,14 +14,15 @@
 {% block auth_content %}
 <form 
     hx-post="/auth/2fa"
-    hx-target="this"
+    hx-target="#auth-card-content"
+    hx-select="#auth-card-content"
     hx-swap="outerHTML"
     method="post"
     class="space-y-6"
 >
     {% if error %}
-        <div class="mb-4">
-            {{ badge_danger(error) }}
+        <div class="mb-6 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800" role="alert">
+            <p class="text-sm font-medium text-red-700 dark:text-red-300">{{ error }}</p>
         </div>
     {% endif %}
 

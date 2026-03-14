@@ -6,4 +6,4 @@ from .config import settings
 from .templates import templates
 from .database import engine, Base
 
-__all__ = ["settings", "templates", "engine", "Base"]
+__all__ = ["settings", "templates", "engine", "Base", ]

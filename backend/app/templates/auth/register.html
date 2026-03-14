@@ -6,32 +6,64 @@
 
 {% from "components/forms.html" import input %}
 {% from "components/buttons.html" import primary %}
-{% from "components/badges.html" import danger as badge_danger %}
+
 
 {% block auth_title %}Registrazione{% endblock %}
 {% block auth_heading %}Crea account{% endblock %}
 
 {% block auth_content %}
 <form 
-    hx-post="/auth/signup"
-    hx-target="this"
+    hx-post="/auth/register"
+    hx-target="#auth-card-content"
+    hx-select="#auth-card-content"
     hx-swap="outerHTML"
     method="post"
     class="space-y-6"
 >
     {# Visualizzazione errori #}
     {% if error %}
-        <div class="mb-4">
-            {{ badge_danger(error) }}
+        <div class="mb-6 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800" role="alert">
+            <p class="text-sm font-medium text-red-700 dark:text-red-300">{{ error }}</p>
         </div>
     {% endif %}
+
+    {# Campi nascosti per CSRF #}
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="sessione_temp" value="{{ sessione_temp }}">
+
+    {# Campo nome tenant #}
+    <div>
+        <label for="nome_tenant" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Nome Attività / Brand
+        </label>
+        {{ input(type="text", name="nome_tenant", value=nome_tenant or "", placeholder="Es. LinkBay CMS", required=true, attrs={"id": "nome_tenant", "autocomplete": "organization"}) }}
+    </div>
+
+    {# Campo slug tenant (opzionale) #}
+    <div>
+        <label for="slug_tenant" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Nome URL (opzionale)
+        </label>
+        {{ input(type="text", name="slug_tenant", value=slug_tenant or "", placeholder="Es. LinkBay-cms", attrs={"id": "slug_tenant", "pattern": "[a-z0-9-]*"}) }}
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Se lo lasci vuoto, viene generato automaticamente dal nome tenant.
+        </p>
+    </div>
+
+    {# Campo nome utente (opzionale) #}
+    <div>
+        <label for="nome_utente" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Nome utente (opzionale)
+        </label>
+        {{ input(type="text", name="nome_utente", value=nome_utente or "", placeholder="Il tuo nome", attrs={"id": "nome_utente", "autocomplete": "name"}) }}
+    </div>
 
     {# Campo email #}
     <div>
         <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Email
         </label>
-        {{ input(type="email", name="email", placeholder="tuo@esempio.com", required=true, attrs={"id": "email"}) }}
+        {{ input(type="email", name="email", value=email or "", placeholder="tuo@esempio.com", required=true, attrs={"id": "email", "autocomplete": "email"}) }}
     </div>
 
     {# Campo password #}
@@ -44,10 +76,10 @@
 
     {# Campo conferma password #}
     <div>
-        <label for="password2" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label for="conferma_password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Conferma password
         </label>
-        {{ input(type="password", name="password2", placeholder="••••••••", required=true, attrs={"id": "password2"}) }}
+        {{ input(type="password", name="conferma_password", placeholder="••••••••", required=true, attrs={"id": "conferma_password", "autocomplete": "new-password"}) }}
     </div>
 
     {# Bottone di registrazione #}

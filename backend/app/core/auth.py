@@ -12,38 +12,62 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 
-from app.core.tenancy import prendi_tenant_corrente
+from app.core.sessione import gestore_sessioni
 
 from app.models import Utente, Tenant
 
-# Variabile di sessione
+# Nome cookie sessione
 SESSION_COOKIE_NAME = "id_sessione_utente"
 
-# Prendiamo utente corrente e se la sessione non corrisponde manda messeggi HTTP di errore
+
 async def prendi_utente_corrente(
-    id_sessione_utente: int | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
-    tenant: Tenant = Depends(prendi_tenant_corrente),
+    id_sessione_utente: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
     db: AsyncSession = Depends(get_db),
 ) -> Utente:
-    if id_sessione_utente is None:
+    
+    # ---- Verifica presenza cookie sessione ---------------------
+    if not id_sessione_utente:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Non autenticato",
+            detail="Non autenticato - sessione mancante",
         )
-
+    
+    # ---- Recupera dati sessione da Redis ------------------------
+    dati_sessione = await gestore_sessioni.ottieni_sessione(id_sessione_utente)
+    
+    if not dati_sessione:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sessione scaduta o non valida",
+        )
+    
+    id_utente = dati_sessione.get("id_utente")
+    id_tenant = dati_sessione.get("id_tenant")
+    
+    # ---- Carica utente da DB con join tenant (1 query) ----------
     result = await db.execute(
-        select(Utente).where(
-            Utente.id == id_sessione_utente,
-            Utente.tenant_id == tenant.id,
+        select(Utente)
+        .join(Tenant, Utente.tenant_id == Tenant.id)
+        .where(
+            Utente.id == id_utente,
+            Utente.tenant_id == id_tenant,
             Utente.attivo.is_(True),
+            Tenant.attivo.is_(True),
         )
     )
+    
     utente = result.scalar_one_or_none()
-
-    if utente is None:
+    
+    # ---- Verifica utente valido ---------------------------------
+    if not utente:
+        # Sessione valida ma utente disabilitato/cancellato
+        await gestore_sessioni.cancella_sessione(id_sessione_utente)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Utente non valido per questo tenant",
+            detail="Utente non più valido",
         )
-
+    
+    # ---- Refresh TTL sessione ad ogni richiesta -----------------
+    await gestore_sessioni.ricarica_sessione(id_sessione_utente)
+    
     return utente

@@ -4,12 +4,23 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request, Query, Form
+from fastapi import APIRouter, Request, Query, Form, Depends
+
 from fastapi.responses import HTMLResponse, RedirectResponse
+
 from fastapi import status
 
 from app.core import templates
+
 from app.core.pagination import Pagination
+
+from app.core.auth import prendi_utente_corrente
+
+from app.core.tenancy import prendi_tenant_corrente
+
+from app.core.permessi import richiede_ruolo, prendi_ruolo_corrente
+
+from app.models import Tenant, Utente, UtenteRuolo
 
 router = APIRouter()
 
@@ -18,13 +29,24 @@ router = APIRouter()
 # -----------------------------------------------------------------------------
 
 @router.get("/users", response_class=HTMLResponse)
-async def users_index(request: Request):
+async def users_index(
+    request: Request,
+    tenant_obj: Tenant = Depends(prendi_tenant_corrente),
+    utente_corrente: Utente = Depends(prendi_utente_corrente),
+    ruolo_corrente: str = Depends(prendi_ruolo_corrente),
+    _: None = Depends(
+        richiede_ruolo([UtenteRuolo.SUPERUTENTE, UtenteRuolo.COLLABORATORE])
+    ),
+):
     """Pagina principale di gestione utenti (carica il template con filtri e tabella vuota)."""
     from app.core.pagination import Pagination
     return templates.TemplateResponse(
         "admin/users/index.html",
         {
             "request": request,
+            "tenant": tenant_obj,
+            "utente": utente_corrente,
+            "ruolo_corrente": ruolo_corrente,
             "users": [],
             "pagination": Pagination(1, 10, 0),
             "current_filters": {},
@@ -44,6 +66,9 @@ async def users_table(
     per_page: int = Query(10, ge=1, le=100),
     filter_role: str = Query("", alias="filter_role"),
     filter_status: str = Query("", alias="filter_status"),
+    _: None = Depends(
+        richiede_ruolo([UtenteRuolo.SUPERUTENTE, UtenteRuolo.COLLABORATORE])
+    ),
 ):
     """
     Restituisce il partial della tabella utenti (inclusa paginazione).
@@ -114,7 +139,12 @@ async def users_table(
 # --- CRUD con modali (placeholder) ---
 
 @router.get("/users/new", response_class=HTMLResponse)
-async def user_new_form(request: Request):
+async def user_new_form(
+    request: Request,
+    _: None = Depends(
+        richiede_ruolo([UtenteRuolo.SUPERUTENTE, UtenteRuolo.COLLABORATORE])
+    ),
+):
     """Mostra form per creazione nuovo utente (modale)."""
     # Restituisce un frammento HTML (es. form)
     return templates.TemplateResponse(
@@ -124,7 +154,10 @@ async def user_new_form(request: Request):
 
 
 @router.post("/users", response_class=HTMLResponse)
-async def user_create(request: Request):
+async def user_create(
+    request: Request,
+    _: None = Depends(richiede_ruolo([UtenteRuolo.SUPERUTENTE])),
+):
     """Crea un nuovo utente (da form)."""
     # Estrai dati dal form (request.form())
     # Salva nel DB
@@ -134,27 +167,45 @@ async def user_create(request: Request):
 
 
 @router.get("/users/{user_id}/edit", response_class=HTMLResponse)
-async def user_edit_form(request: Request, user_id: int):
+async def user_edit_form(
+    request: Request,
+    user_id: int,
+    _: None = Depends(
+        richiede_ruolo([UtenteRuolo.SUPERUTENTE, UtenteRuolo.COLLABORATORE])
+    ),
+):
     """Mostra form di modifica utente (modale)."""
     # Carica utente dal DB e restituisci form precompilato
     pass
 
 
 @router.put("/users/{user_id}", response_class=HTMLResponse)
-async def user_update(request: Request, user_id: int):
+async def user_update(
+    request: Request,
+    user_id: int,
+    _: None = Depends(richiede_ruolo([UtenteRuolo.SUPERUTENTE])),
+):
     """Aggiorna utente esistente."""
     pass
 
 
 @router.delete("/users/{user_id}", response_class=HTMLResponse)
-async def user_delete(request: Request, user_id: int):
+async def user_delete(
+    request: Request,
+    user_id: int,
+    _: None = Depends(richiede_ruolo([UtenteRuolo.SUPERUTENTE])),
+):
     """Elimina utente."""
     # Dopo eliminazione, restituisci tabella aggiornata (o messaggio toast)
     pass
 
 
 @router.post("/users/bulk-delete", response_class=HTMLResponse)
-async def users_bulk_delete(request: Request, ids: list[int] = Form(...)):
+async def users_bulk_delete(
+    request: Request,
+    ids: list[int] = Form(...),
+    _: None = Depends(richiede_ruolo([UtenteRuolo.SUPERUTENTE])),
+):
     """Eliminazione multipla di utenti."""
     # ids è una lista di ID (dalle checkbox)
     # Esegui eliminazione e restituisci tabella aggiornata

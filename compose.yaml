@@ -65,6 +65,27 @@ services:
       - web
 
 # -------------------------------------------------------------------------------
+# REDIS
+# -------------------------------------------------------------------------------
+
+  redis:
+    image: redis:7-alpine
+    container_name: saas_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - web
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+# -------------------------------------------------------------------------------
 # BACKEND
 # -------------------------------------------------------------------------------
 
@@ -94,6 +115,7 @@ services:
    # Dice a compose che il backend dipende da DB, così fa partire prima il db 
     depends_on:
       - db
+      - redis
     # Monta il codice dentro app nella cartella backend
     volumes:
       - ./backend/app:/app/app
@@ -171,3 +193,4 @@ networks:
 # Definisce il nome volume usato dal serizio
 volumes:
   pg_data:
+  redis_data:

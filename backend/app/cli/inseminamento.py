@@ -1,4 +1,7 @@
-# backend/app/cli/inseminamento.py (o seed.py)
+# =============================================================================
+# backend/app/cli/inseminamento.py
+# =============================================================================
+
 from __future__ import annotations
 
 import asyncio
@@ -9,8 +12,7 @@ from sqlalchemy import select
 
 from app.core.database import AsyncSessionLocal
 from app.core.sicurezza import hash_password
-from app.models import Tenant, Utente, UtenteRuolo
-
+from app.models import Tenant, Utente, UtenteRuoloTenant, UtenteRuolo
 
 app = typer.Typer(help="Comandi di seed/dati iniziali.")
 
@@ -21,22 +23,32 @@ async def _seed_tenant_and_admin(
     admin_email: str,
     admin_password: str,
 ) -> None:
+    """Crea tenant + admin con ruolo SUPERUTENTE"""
+    
     async with AsyncSessionLocal() as session:
-        # 1) Tenant
+        
+        # ---- 1) Crea o trova Tenant ---------------------------------
         result = await session.execute(
             select(Tenant).where(Tenant.slug == slug)
         )
         tenant = result.scalar_one_or_none()
 
         if tenant is None:
-            tenant = Tenant(slug=slug, nome=nome_tenant, attivo=True)
+            tenant = Tenant(
+                slug=slug,
+                nome=nome_tenant,
+                attivo=True,
+            )
             session.add(tenant)
-            await session.flush()
-            typer.echo(f"[OK] Creato tenant '{slug}' (id={tenant.id})")
+            await session.flush()  # Genera tenant.id
+            typer.secho(
+                f"✅ Creato tenant '{slug}' (id={tenant.id})",
+                fg=typer.colors.GREEN,
+            )
         else:
-            typer.echo(f"[INFO] Tenant '{slug}' esiste già (id={tenant.id})")
+            typer.echo(f"ℹ️  Tenant '{slug}' esiste già (id={tenant.id})")
 
-        # 2) Admin
+        # ---- 2) Crea o trova Utente admin ---------------------------
         result = await session.execute(
             select(Utente).where(Utente.email == admin_email)
         )
@@ -47,22 +59,48 @@ async def _seed_tenant_and_admin(
             admin = Utente(
                 tenant_id=tenant.id,
                 nome="Admin",
-                cognome="",
                 email=admin_email,
                 hashed_password=hashed,
                 attivo=True,
-                ruolo=UtenteRuolo.SUPERUTENTE,
             )
             session.add(admin)
-            await session.commit()
+            await session.flush()  # Genera admin.id
             typer.secho(
-                f"[OK] Creato admin '{admin_email}' per tenant '{slug}'",
+                f"✅ Creato utente admin '{admin_email}' (id={admin.id})",
                 fg=typer.colors.GREEN,
             )
         else:
             typer.echo(
-                f"[INFO] Utente admin '{admin_email}' esiste già (tenant_id={admin.tenant_id})"
+                f"ℹ️  Utente admin '{admin_email}' esiste già (id={admin.id}, tenant_id={admin.tenant_id})"
             )
+
+        # ---- 3) Assegna ruolo SUPERUTENTE ---------------------------
+        result = await session.execute(
+            select(UtenteRuoloTenant).where(
+                UtenteRuoloTenant.utente_id == admin.id,
+                UtenteRuoloTenant.tenant_id == tenant.id,
+            )
+        )
+        ruolo_esistente = result.scalar_one_or_none()
+
+        if ruolo_esistente is None:
+            ruolo_admin = UtenteRuoloTenant(
+                utente_id=admin.id,
+                tenant_id=tenant.id,
+                ruolo=UtenteRuolo.SUPERUTENTE,
+            )
+            session.add(ruolo_admin)
+            await session.commit()
+            typer.secho(
+                f"✅ Ruolo SUPERUTENTE assegnato a '{admin_email}' per tenant '{slug}'",
+                fg=typer.colors.GREEN,
+            )
+        else:
+            typer.echo(
+                f"ℹ️  Ruolo '{ruolo_esistente.ruolo}' già assegnato a '{admin_email}' per tenant '{slug}'"
+            )
+
+        typer.secho("\n🎉 Seed completato con successo!", fg=typer.colors.BRIGHT_GREEN, bold=True)
 
 
 @app.command("tenant-admin")
@@ -79,7 +117,17 @@ def seed_tenant_and_admin(
     ] = "changeme",
 ) -> None:
     """
-    Crea (se non esistono) un tenant e un utente admin associato.
+    Crea (se non esistono):
+    1. Tenant con slug specificato
+    2. Utente admin per quel tenant
+    3. Ruolo SUPERUTENTE assegnato all'admin
+    
+    Esempio:
+    python -m app.cli seed tenant-admin \
+        --slug spotex \
+        --nome-tenant "Spotex SRL" \
+        --admin-email info@spotexsrl.it \
+        --admin-password Password123!
     """
     asyncio.run(
         _seed_tenant_and_admin(slug, nome_tenant, admin_email, admin_password)

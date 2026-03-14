@@ -16,6 +16,8 @@
     <nav class="flex flex-1 flex-col">
       <ul role="list" class="flex flex-1 flex-col gap-y-2">
 
+        {% set ruolo_menu = ruolo_corrente or "utente" %}
+
         <!-- Group -->
         <li>
           <div class="text-xs font-semibold tracking-wide text-gray-500 dark:text-gray-400 uppercase">
@@ -23,16 +25,16 @@
           </div>
           <ul role="list" class="mt-2 space-y-1">
 
-            {% set active = request.url.path.startswith('/admin/dashboard') %}
+            {% set active = request.url.path.startswith('/' ~ tenant.slug ~ '/admin/dashboard') %}
             <li>
-              <a href="/admin/dashboard"
+              <a href="/{{ tenant.slug }}/admin/dashboard"
                  class="group flex items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-medium
                         {% if active %}
                           bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white
                         {% else %}
                           text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800
                         {% endif %}">
-                <i class="fas fa-chart-pie w-5 h-5 text-gray-400"></i>
+                <i class="ri-pie-chart-2-line w-5 h-5 text-gray-400"></i>
                 Dashboard
               </a>
             </li>
@@ -43,42 +45,76 @@
         <!-- Group -->
         <li>
           <ul role="list">
-            {% set active = request.url.path.startswith('/admin/users') %}
-            <li>
-              <a href="/admin/users"
-                 class="group flex items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-medium
-                        {% if active %}
-                          bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white
-                        {% else %}
-                          text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800
-                        {% endif %}">
-                <i class="fa-solid fa-users w-5 h-5 text-gray-400"></i>
-                Utenti
-              </a>
-            </li>
+            {% if ruolo_menu in ["superutente", "collaboratore"] %}
+              {% set active = request.url.path.startswith('/' ~ tenant.slug ~ '/admin/users') %}
+              <li>
+                <a href="/{{ tenant.slug }}/admin/users"
+                   class="group flex items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-medium
+                          {% if active %}
+                            bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white
+                          {% else %}
+                            text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800
+                          {% endif %}">
+                  <i class="ri-group-line w-5 h-5 text-gray-400"></i>
+                  Utenti
+                </a>
+              </li>
+            {% endif %}
 
           </ul>
         </li>
 
-        <!--Copia e incolla il groups-->
+        <!-- Group -->
+        <li>
+          <div class="text-xs font-semibold tracking-wide text-gray-500 dark:text-gray-400 uppercase">
+            Area
+          </div>
+          <ul role="list" class="mt-2 space-y-1">
+            {% if ruolo_menu == "superutente" %}
+              <li>
+                <a href="/{{ tenant.slug }}/admin/users"
+                   class="group flex items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800">
+                  <i class="ri-shield-check-line w-5 h-5 text-gray-400"></i>
+                  Area superutente
+                </a>
+              </li>
+            {% elif ruolo_menu == "collaboratore" %}
+              <li>
+                <a href="/{{ tenant.slug }}/admin/users"
+                   class="group flex items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800">
+                  <i class="ri-user-settings-line w-5 h-5 text-gray-400"></i>
+                  Area collaboratore
+                </a>
+              </li>
+            {% else %}
+              <li>
+                <a href="/{{ tenant.slug }}/admin/dashboard"
+                   class="group flex items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800">
+                  <i class="ri-user-line w-5 h-5 text-gray-400"></i>
+                  Area base
+                </a>
+              </li>
+            {% endif %}
+          </ul>
+        </li>
 
         <!-- Footer -->
         <li class="mt-auto pt-4 border-t border-gray-200 dark:border-gray-800">
           <div class="flex items-center justify-between relative" x-data="{ open: false }">
             <button @click="open = !open" class="flex-1 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 px-2 py-2 rounded">
-              <div class="font-medium">User</div>
-              <div class="text-xs text-gray-500 dark:text-gray-400">Role</div>
+              <div class="font-medium">{{ utente.nome }}</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400">{{ tenant.slug }} | {{ ruolo_corrente or "No Ruolo" }}</div>
             </button>
             {% include "components/theme_selector.html" %}
             
             <!-- Dropdown Menu -->
             <div @click.away="open = false" x-show="open" x-transition class="absolute bottom-16 left-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 w-48">
               <a href="#" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <i class="fas fa-cog mr-2"></i> Impostazioni utente
+                <i class="ri-settings-3-line mr-2"></i> Impostazioni {{ ruolo_corrente or " - " }}
               </a>
               <form action="/auth/logout" method="post" class="block">
                 <button type="submit" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 border-t border-gray-200 dark:border-gray-700">
-                  <i class="fas fa-sign-out-alt mr-2"></i> Logout
+                  <i class="ri-logout-box-r-line mr-2"></i> Logout
                 </button>
               </form>
             </div>

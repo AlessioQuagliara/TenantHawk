@@ -10,6 +10,8 @@ from fastapi.staticfiles import StaticFiles
 
 from app.core import settings
 
+from app.core.sessione import gestore_sessioni
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -42,11 +44,15 @@ async def lifespan(app: FastAPI):
         # app.state.redis = await create_redis_pool(...)
         app.state.engine = engine
 
+        await gestore_sessioni.connessione()
+
         yield
         # --- SHUTDOWN ---
         # Esempi di placeholder:
         # await app.state.redis.aclose()
         # await app.state.db.close()
+        await gestore_sessioni.disconnessione()
+
         await engine.dispose()
 
 # =============================================================================

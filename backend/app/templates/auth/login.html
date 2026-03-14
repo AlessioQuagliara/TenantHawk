@@ -1,14 +1,13 @@
 <!-- ======================================================================================= -->
-<!-- backend/app/templates/auth/login -->
+<!-- backend/app/templates/auth/login.html -->
 <!-- ======================================================================================= -->
 
 {% extends "auth/base.html" %}
 
 {# Import delle macro necessarie #}
-
 {% from "components/buttons.html" import primary %}
 {% from "components/forms.html" import input %}
-{% from "components/badges.html" import danger as badge_danger %}
+
 
 {% block auth_title %}Login{% endblock %}
 {% block auth_heading %}Accedi{% endblock %}
@@ -16,20 +15,29 @@
 {% block auth_content %}
 <form 
     hx-post="/auth/login"
-    hx-target="this"
+    hx-target="#auth-card-content"
+    hx-select="#auth-card-content"
     hx-swap="outerHTML"
     method="post"
     class="space-y-6"
 >
-    {# Mostra errori generali (es. credenziali errate) #}
-    
-    {% if error %}
-        <div class="mb-4">
-            {{ badge_danger(error) }}
+    {# Mostra messaggi di successo #}
+    {% if success %}
+        <div class="mb-6 p-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800" role="alert">
+            <p class="text-sm font-medium text-green-700 dark:text-green-300"><i class="ri-check-double-line"></i> &nbsp;&nbsp; {{ success }}</p>
         </div>
     {% endif %}
 
-    {# Campi nascosti #}
+    {# Mostra errori generali (es. credenziali errate) #}
+    {% if error %}
+        <div class="mb-6 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800" role="alert">
+            <p class="text-sm font-medium text-red-700 dark:text-red-300"><i class="ri-error-warning-fill"></i> &nbsp;&nbsp; {{ error }}</p>
+        </div>
+    {% endif %}
+
+    {# Campi nascosti per CSRF e routing #}
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="sessione_temp" value="{{ sessione_temp }}">
     <input type="hidden" name="next" value="{{ next or '/' }}">
 
     {# Campo email #}
@@ -37,7 +45,7 @@
         <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Email
         </label>
-        {{ input(type="email", name="email", placeholder="tuo@esempio.com", required=true, attrs={"id": "email"}) }}
+        {{ input(type="email", name="email", placeholder="tuo@esempio.com", required=true, attrs={"id": "email", "autocomplete": "email"}) }}
     </div>
 
     {# Campo password #}
@@ -45,7 +53,7 @@
         <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Password
         </label>
-        {{ input(type="password", name="password", placeholder="••••••••", required=true, attrs={"id": "password"}) }}
+        {{ input(type="password", name="password", placeholder="••••••••", required=true, attrs={"id": "password", "autocomplete": "current-password"}) }}
     </div>
 
     {# Bottone di submit #}
