@@ -15,6 +15,8 @@ services:
     command:
     # Per dashboard
       - "--api.dashboard=true"
+    # Per test senza SSL
+      - "--api.insecure=true"
     # Per Providers del container
       - "--providers.docker=true"      
     # Per non esporto di default (utile in rinnovo certificati)
@@ -30,6 +32,8 @@ services:
     ports:
       - "80:80"
       #- "443:443"
+      # Per esporre la porta
+      - "8080:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       #- ./traefik/acme.json:/acme.json 
@@ -186,6 +190,59 @@ services:
       # - "traefik.http.routers.frontend-www-prod.entrypoints=websecure"
       # - "traefik.http.routers.frontend-www-prod.tls.certresolver=le"
 
+
+# -------------------------------------------------------------------------------
+# LiteLLM - Per comandare x LLM differenti, Fare Switch in caso  di problemi GDPR
+# -------------------------------------------------------------------------------
+
+  LiteLLM:
+    container_name: litellm
+    image: ghcr.io/berriai/litellm:main-latest
+    volumes:
+      - ./litellm_config.yaml:/app/config.yaml
+    depends_on:
+      - db
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    env_file:
+      - .env
+    environment:
+      - APP_DEEPSEEK_API_KEY=${APP_DEEPSEEK_API_KEY}
+      - LITELLM_MASTER_KEY=${APP_LITELLM_MASTER_KEY}
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/litellm
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.litellm.rule=Host(`litellm.localhost`)"
+      - "traefik.http.routers.litellm.entrypoints=web"
+      - "traefik.http.services.litellm.loadbalancer.server.port=4000"
+    networks:
+      - web
+
+
+# -------------------------------------------------------------------------------
+# n8n - Per automazioni
+# ------------------------------------------------------------------------------- 
+
+  n8n:
+    image: n8nio/n8n
+    env_file:
+      - .env
+    environment:
+      - N8N_ENCRYPTION_KEY=${APP_N8N_ENCRYPTION_KEY}
+      - N8N_SECURE_COOKIE=false
+      - N8N_TRUST_PROXY=true
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      - LiteLLM
+    restart: unless-stopped
+    networks:
+      - web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.n8n.rule=Host(`n8n.localhost`)"
+      - "traefik.http.services.n8n.loadbalancer.server.port=5678"
+
 networks:
   web:
     driver: bridge
@@ -194,3 +251,4 @@ networks:
 volumes:
   pg_data:
   redis_data:
+  n8n_data:

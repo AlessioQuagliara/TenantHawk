@@ -1,213 +1,92 @@
-![Logo](backend/app/static/images/logo-dark.svg)
+<!-- Licenza -->
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-***
+<!-- GitHub -->
+[![GitHub Repo](https://img.shields.io/badge/GitHub-000000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/user/repo) ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white) ![n8n](https://img.shields.io/badge/n8n-1EC19A?style=for-the-badge&logo=n8n&logoColor=white) ![Traefik](https://img.shields.io/badge/Traefik-24A1C1?style=for-the-badge&logo=traefikproxy&logoColor=white) ![LiteLLM](https://img.shields.io/badge/LiteLLM-4B32C3?style=for-the-badge&logo=python&logoColor=white) ![Next.js](https://img.shields.io/badge/Next.js-000000?style=flat&logo=next.js&logoColor=white) ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white) ![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
+****
+![Logo](/img/logo.gif)
+****
+# SaaS Template
+## ..........Crea velocemente il tuo SaaS!
+### .....................Completo di tutto
+#### .........................................Deploy veloce
+##### .......................................................................Scalabilità verticale
+###### ..............................................................................Multitenant, Automazioni, LLM... TUTTO!
 
-> Template open source per SaaS multi-tenant con costruttore di moduli integrato.
+**Crea il tuo SaaS con uno stack moderno ed affidabile**.
 
-Stack: FastAPI async + SQLAlchemy 2 + asyncpg + Jinja2/HTMX per il backend, Next.js 16 con Tailwind per il frontend, Docker Compose + Traefik + Postgres + Redis per l'infrastruttura.
+****
 
-## Caratteristiche
+### Avvio Progetto
 
-- Routing admin multi-tenant via path: `/{tenant}/admin/...`
-- Autenticazione sicura con Redis session store, CSRF protection e bcrypt async
-- Sistema ruoli granulare per-tenant (un utente può essere admin in un tenant e viewer in un altro)
-- Email transazionali con Resend (conferma account e password recovery funzionanti)
-- Gestione errori HTTP centralizzata con pagine dedicate per area pubblica e admin (401, 403, 404, 500)
-- Admin HTML (Jinja2 + HTMX) con componenti personalizzabili
-- Landing marketing in Next.js
-- Postgres con engine async, connection pooling calibrato per worker
-- Redis per sessioni distribuite (scalabile orizzontalmente)
-- Reverse proxy Traefik pronto per HTTPS (Let's Encrypt) in produzione
-- Migrazioni database con Alembic (async, autogenerate)
-- CLI di scaffolding per generare moduli backend in pochi secondi
-- Gunicorn + UvicornWorker per produzione stabile con restart automatico dei worker
-- Healthcheck integrato per Docker
+![Terminale](/img/terminal.gif)
 
-## Struttura
+Avviare il progetto è molto semplice, ti basta entrare con un terminale sulla cartella del progetto e digitare ```docker compose up --build``` per avviare il tutto!
 
-- `backend/`: FastAPI, template Jinja2/HTMX, modelli SQLAlchemy, migrazioni Alembic, CLI
-- `frontend/`: Next.js landing
-- `compose.yaml`: stack completo (Traefik, Postgres, Redis, backend, frontend)
-- `test/`: script k6 per load testing
+> **Raccomandazioni**: Creare un file .env con tutte le variabili del caso, questa spiegazione si lascia al fondo del foglio.
 
-## Autenticazione e sicurezza
+Prima di creare il progetto si raccomanda di avviare le migrazioni con **alembic**, tramite il comando ```docker compose exec backend alembic revision --autogenerate -m "Inizializza"```, dopodiché consiglio il comando per applicare le migrazioni: ```docker compose exec backend alembic upgrade head```, questo per poter partire subito.
 
-Il login è su `admin.localhost` (senza prefisso tenant) e risolve automaticamente il tenant dell'utente dal database. Dopo il login il browser viene reindirizzato a `/{tenant}/admin/dashboard`.
-
-**Sicurezza implementata:**
-- Sessioni server-side in Redis (non manipolabili dal client)
-- Cookie HTTP-only con SameSite=Lax
-- CSRF token firmato con scadenza su ogni form
-- Password hashing con bcrypt async (non blocca l'event loop)
-- Token temporanei per password recovery (validi 1 ora)
-- Sistema ruoli per-tenant con check granulari
-
-Ogni area admin è isolata per tenant tramite dependency FastAPI che verifica slug, stato attivo e appartenenza dell'utente. Le sessioni scadono dopo 24h di inattività e vengono invalidate al logout.
-
-## Sistema ruoli
-
-Gli utenti hanno ruoli diversi per ogni tenant tramite la tabella `utente_ruolo_tenant`:
-
-- **SUPERUTENTE**: accesso completo, può gestire altri utenti
-- **COLLABORATORE**: può creare e modificare contenuti
-- **MODERATORE**: può moderare contenuti ma non eliminarli
-- **UTENTE**: solo lettura
-
-Esempio: Mario può essere SUPERUTENTE in "Azienda A" e UTENTE in "Azienda B".
-
-Per proteggere route admin:
-
-```python
-from app.core.permessi import richiede_ruolo, solo_superutente
-from app.models import UtenteRuolo
-
-
-@router.get("/users")
-async def lista_utenti(
-    _: None = Depends(richiede_ruolo([UtenteRuolo.SUPERUTENTE, UtenteRuolo.COLLABORATORE]))
-):
-    # Solo SUPERUTENTE e COLLABORATORE possono accedere
-    ...
-
-
-@router.delete("/users/{id}")
-async def elimina_utente(
-    id: int,
-    _: None = Depends(solo_superutente),
-):
-    # Solo SUPERUTENTE può eliminare
-    ...
+Quindi:
+1) Step
+```bash
+docker compose exec backend alembic revision --autogenerate -m "Inizializza"
+```
+2) Step
+```bash
+docker compose exec backend alembic upgrade head
 ```
 
-## Migrazioni e seed
-
-Le migrazioni si gestiscono con Alembic direttamente nel container backend:
-
+Se si vuole creare un utente manualmente senza usare la registrazione di admin.localhost si può tramite seed, che ha il comando:
 ```bash
-# Genera una nuova migrazione dopo aver modificato i modelli
-docker compose exec backend alembic revision --autogenerate -m "descrizione"
-
-# Applica le migrazioni
-docker compose exec backend alembic upgrade head
-
-# Crea un tenant, utente admin e assegna ruolo SUPERUTENTE
 docker compose exec backend python -m app.cli seed tenant-admin \
   --slug demo \
   --nome-tenant "Tenant Demo" \
   --admin-email admin@demo.com \
   --admin-password latuapassword
 ```
+è importante notare che questo comando non agisce sul ruolo tenant, quindi questo utente ne sarà sprovvisto.
 
-Lo script seed è idempotente: se tenant o utente esistono già non fallisce e mostra un messaggio info.
+### Monitoring risorse
+![Docker](/img/docker.gif)
 
-## Costruttore moduli
+Anche se non l'ho detto, per lo sviluppo è importante possedere l'applicazione di ```docker```, senza di essa non potrete usare comandi come: ```docker compose up``` per avviare il progetto.
 
-La CLI permette di generare moduli backend completi senza scrivere boilerplate:
+Con essa potrete vedere i logs, monitorare le risorse, e vedere i container se sono attivi o meno.
+
+I comandi principali che userete sono:
+```bash
+docker compose up -d
+```
+*Esso avvia l'applicativo*
+```bash
+docker compose down
+```
+*Questo spegne i container preservando i dati su DB e altro*
+
+**ATTENZIONE**: Non avviare mai in produzione il comando ```docker compose down -v```, poiché esso **cancellerà anche tutti i dati del database** senza fare eccezioni, poi sarà tutto irrecuperabile.
 
 ```bash
-# Lista comandi disponibili per l'area admin
-python -m app.cli admin --help
-
-# Crea un modulo con rotta e template Jinja2
-python -m app.cli admin create-module statistiche
-
-# Crea un modulo completo con rotta, template, model SQLAlchemy e schema Pydantic
-python -m app.cli admin create-module statistiche --with-model --with-schema
+docker compose build
 ```
-
-Ogni comando aggiorna automaticamente gli `__init__.py` coinvolti, quindi il modulo è subito disponibile senza toccare nulla a mano.
-
-## Avvio locale
-
+Per fare la build di eventuali modifiche, utile prima dell'avvio, per casi disperati usare ```docker compose build --no-cache```, serve per buildare senza residui di cache.
 ```bash
 docker compose up --build
 ```
+Molto utile, avvia e builda allo stesso tempo. 
 
-Admin: http://admin.localhost:8000/auth/login  
-Landing: http://www.localhost:3000
+### Admin - Backend
+![Admin](/img/admin.gif)
+### Landing - Frontend
+![Landing](/img/frontend.gif)
+### Traefik - Reverse Proxy
+![Traefik](/img/traefik.gif)
+### LiteLLM - Gestione LLM
+![LiteLLM](/img/litellm.gif)
+### n8n - Creazione Automazioni
+![n8n](/img/n8n.gif)
 
-## Performance
+****
 
-Testato con k6 a 700 utenti virtuali concorrenti (con CSRF + Redis) su MacBook con Docker:
-
-- **95.6 req/s HTTP** (`4152` richieste totali)
-- **31.9 login completi/secondo** (`1384` iterazioni completate)
-- **0% errori** su `4152` richieste e `1384` iterazioni
-- **Latenza media 6.39s** (`p90 15.13s`, `p95 17.41s`) sotto stress estremo a `700 VU`
-- Ogni login completo esegue 3 richieste (GET form CSRF, POST login, GET dashboard)
-
-La verifica password usa bcrypt async con semaphore per non bloccare l'event loop sotto carico. Redis gestisce tutte le sessioni senza problemi anche con migliaia di utenti concorrenti.
-
-```
-         /\      Grafana   /‾‾/
-    /\  /  \     |\  __   /  /
-   /  \/    \    | |/ /  /   ‾‾\
-  /          \   |   (  |  (‾)  |
- / __________ \  |_|\_\  \_____/
-
-     execution: local
-        script: test/test_login.js
-        output: -
-
-     scenarios: (100.00%) 1 scenario, 700 max VUs, 1m0s max duration (incl. graceful stop):
-              * default: 700 looping VUs for 30s (gracefulStop: 30s)
-
-
-  █ TOTAL RESULTS
-
-    checks_total.......: 9688    223.040847/s
-    checks_succeeded...: 100.00% 9688 out of 9688
-    checks_failed.......: 0.00%   0 out of 9688
-
-    ✓ login page status è 200
-    ✓ login status è 303
-    ✓ header Location presente
-    ✓ cookie id_sessione_utente impostato
-    ✓ dashboard status è 200
-    ✓ dashboard contiene HTML
-    ✓ dashboard non ha errore sessione
-
-    HTTP
-    http_req_duration..............: avg=6.39s min=896µs med=4.92s max=26.27s p(90)=15.13s p(95)=17.41s
-      { expected_response:true }...: avg=6.39s min=896µs med=4.92s max=26.27s p(90)=15.13s p(95)=17.41s
-    http_req_failed................: 0.00%  0 out of 4152
-    http_reqs......................: 4152   95.588934/s
-
-    EXECUTION
-    iteration_duration.............: avg=20.2s min=1.9s  med=19s   max=42.56s p(90)=25.65s p(95)=27.05s
-    iterations.....................: 1384   31.862978/s
-    vus............................: 92     min=92        max=700
-    vus_max........................: 700    min=700       max=700
-
-    NETWORK
-    data_received..................: 46 MB  1.1 MB/s
-    data_sent......................: 899 kB 21 kB/s
-
-
-running (0m43.4s), 000/700 VUs, 1384 complete and 0 interrupted iterations
-```
-
-## Password recovery
-
-Il flusso completo di reset password è implementato con Resend:
-
-1. Utente va su `/auth/password-recovery` e inserisce email
-2. Backend genera token sicuro (valido 1 ora) e lo salva in DB
-3. Email con link di reset viene inviata tramite Resend
-4. Utente clicca link con token e imposta nuova password
-5. Token viene marcato come usato e non può essere riutilizzato
-
-## Prossimi step (opzionali)
-
-- Rate limiting login (slowapi per 5 tentativi/minuto)
-- 2FA opzionale con TOTP per admin
-- Session fingerprinting (IP + User-Agent hash per prevenire hijacking)
-- Password policy configurabile (lunghezza min, complessità, storia)
-- Modulo billing (piani, abbonamenti, integrazione provider pagamenti)
-
-
-## License
-
-MIT
-
-***
+### Licenza MIT
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
