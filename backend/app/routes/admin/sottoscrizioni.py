@@ -464,12 +464,17 @@ async def sottoscrizioni_cambia_piano_submit(
                 proration_behavior="create_prorations",
                 items=[{"id": item_id, "price": price_id}],
             )
+            invoice_paid_flag = invoice_pagata_da_subscription_obj(updated)
+            status_effettivo = stato_stripe_effettivo(
+                str(updated.get("status") or ""),
+                invoice_paid=invoice_paid_flag,
+            )
             await sincronizza_sottoscrizione_da_stripe(
                 db,
                 tenant_id=tenant_id,
                 stripe_subscription_id=str(updated.get("id")),
                 stripe_customer_id=str(updated.get("customer")),
-                stripe_status=str(updated.get("status")),
+                stripe_status=status_effettivo,
                 stripe_price_id=_estrai_price_id_da_subscription(updated),
                 current_period_end_unix=_estrai_current_period_end(updated),
             )
@@ -671,12 +676,16 @@ async def sottoscrizioni_annulla_submit(
             str(sottoscrizione.id_stripe_sottoscrizione),
             cancel_at_period_end=True,
         )
+        status_effettivo = stato_stripe_effettivo(
+            str(updated.get("status") or ""),
+            invoice_paid=invoice_pagata_da_subscription_obj(updated),
+        )
         await sincronizza_sottoscrizione_da_stripe(
             db,
             tenant_id=tenant_id,
             stripe_subscription_id=str(updated.get("id")),
             stripe_customer_id=str(updated.get("customer")),
-            stripe_status=str(updated.get("status")),
+            stripe_status=status_effettivo,
             stripe_price_id=_estrai_price_id_da_subscription(updated),
             current_period_end_unix=_estrai_current_period_end(updated),
         )
@@ -736,12 +745,16 @@ async def sottoscrizioni_riattiva_submit(
             str(sottoscrizione.id_stripe_sottoscrizione),
             cancel_at_period_end=False,
         )
+        status_effettivo = stato_stripe_effettivo(
+            str(updated.get("status") or ""),
+            invoice_paid=invoice_pagata_da_subscription_obj(updated),
+        )
         await sincronizza_sottoscrizione_da_stripe(
             db,
             tenant_id=tenant_id,
             stripe_subscription_id=str(updated.get("id")),
             stripe_customer_id=str(updated.get("customer")),
-            stripe_status=str(updated.get("status")),
+            stripe_status=status_effettivo,
             stripe_price_id=_estrai_price_id_da_subscription(updated),
             current_period_end_unix=_estrai_current_period_end(updated),
         )

@@ -145,7 +145,7 @@ def stato_stripe_effettivo(
     )
 
     if invoice_paid or payment_status_normalizzato == "paid":
-        if stato_normalizzato in {None, "incomplete", "past_due", "unpaid"}:
+        if stato_normalizzato in {None, "incomplete", "past_due", "unpaid", "trialing"}:
             return "active"
 
     return stato_normalizzato
