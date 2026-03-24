@@ -6,6 +6,7 @@ python-dotenv
 psycopg2-binary ; sys_platform == "darwin" 
 SQLAlchemy
 pydantic
+email-validator
 pydantic-settings
 Jinja2
 python-multipart

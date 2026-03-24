@@ -8,6 +8,8 @@ Import di base ================================================================
 
 from fastapi.staticfiles import StaticFiles
 
+import stripe  # ty:ignore[unresolved-import]
+
 from app.core import settings
 
 from app.core.sessione import gestore_sessioni
@@ -21,6 +23,8 @@ from app.core import engine
 from app.core.gestione_errori import registra_handler_globali
 
 from app.routes import router as api_router
+
+stripe.api_key = settings.stripe_secret_key
 
 # =============================================================================
 

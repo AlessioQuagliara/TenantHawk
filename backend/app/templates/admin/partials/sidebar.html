@@ -2,6 +2,8 @@
 <!-- backend/app/templates/admin/partials -->
 <!-- ======================================================================================= -->
 
+{% set ruolo_menu = ruolo_corrente or "utente" %}
+
 <aside class="hidden lg:flex lg:w-72 lg:flex-col lg:fixed lg:inset-y-0">
   <div class="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-6 pb-4">
     
@@ -14,15 +16,15 @@
 
     <!-- Nav -->
     <nav class="flex flex-1 flex-col">
-      <ul role="list" class="flex flex-1 flex-col gap-y-2">
 
-        {% set ruolo_menu = ruolo_corrente or "utente" %}
+      <ul role="list" class="flex flex-1 flex-col gap-y-2">
 
         <!-- Group -->
         <li>
           <div class="text-xs font-semibold tracking-wide text-gray-500 dark:text-gray-400 uppercase">
             Overview
           </div>
+
           <ul role="list" class="mt-2 space-y-1">
 
             {% set active = request.url.path.startswith('/' ~ tenant.slug ~ '/admin/dashboard') %}
@@ -45,7 +47,7 @@
         <!-- Group -->
         <li>
           <ul role="list">
-            {% if ruolo_menu in ["superutente", "collaboratore"] %}
+            {% if ruolo_menu == "superutente" %}
               {% set active = request.url.path.startswith('/' ~ tenant.slug ~ '/admin/users') %}
               <li>
                 <a href="/{{ tenant.slug }}/admin/users"
@@ -59,64 +61,103 @@
                   Utenti
                 </a>
               </li>
+
             {% endif %}
 
           </ul>
         </li>
 
-        <!-- Group -->
-        <li>
-          <div class="text-xs font-semibold tracking-wide text-gray-500 dark:text-gray-400 uppercase">
-            Area
-          </div>
-          <ul role="list" class="mt-2 space-y-1">
-            {% if ruolo_menu == "superutente" %}
-              <li>
-                <a href="/{{ tenant.slug }}/admin/users"
-                   class="group flex items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800">
-                  <i class="ri-shield-check-line w-5 h-5 text-gray-400"></i>
-                  Area superutente
-                </a>
-              </li>
-            {% elif ruolo_menu == "collaboratore" %}
-              <li>
-                <a href="/{{ tenant.slug }}/admin/users"
-                   class="group flex items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800">
-                  <i class="ri-user-settings-line w-5 h-5 text-gray-400"></i>
-                  Area collaboratore
-                </a>
-              </li>
-            {% else %}
-              <li>
-                <a href="/{{ tenant.slug }}/admin/dashboard"
-                   class="group flex items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800">
-                  <i class="ri-user-line w-5 h-5 text-gray-400"></i>
-                  Area base
-                </a>
-              </li>
-            {% endif %}
-          </ul>
-        </li>
+
+    <!-- Stato Piano -->
+    {% if ruolo_menu == "superutente" %}
+      {% if tenant is defined and tenant and tenant.sottoscrizione %}
+        {% set stato = tenant.sottoscrizione.stato_piano.value %}
+        
+        {# Definiamo i colori in base allo stato #}
+        {% if stato == "prova" %}
+        {% set colors = "bg-amber-50 border-amber-200 dark:bg-amber-950 dark:border-amber-800" %}
+        {% set text_colors = "text-amber-700 dark:text-amber-200" %}
+        {% elif stato == "attivo" %}
+        {% set colors = "bg-emerald-50 border-emerald-200 dark:bg-emerald-950 dark:border-emerald-800" %}
+        {% set text_colors = "text-emerald-700 dark:text-emerald-200" %}
+        {% elif stato in ["sospeso", "scaduto", "cancellato"] %}
+        {% set colors = "bg-rose-50 border-rose-200 dark:bg-rose-950 dark:border-rose-800" %}
+        {% set text_colors = "text-rose-700 dark:text-rose-200" %}
+        {% else %}
+        {% set colors = "bg-gray-50 border-gray-200 dark:bg-gray-800 dark:border-gray-700" %}
+        {% set text_colors = "text-gray-700 dark:text-gray-300" %}
+        {% endif %}
+
+        <div class="mt-4 p-3 rounded-lg border {{ colors }} space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-semibold uppercase tracking-wide {{ text_colors }}">
+            Piano
+          {{ tenant.sottoscrizione.piano.value }}
+          </span>
+          <span>|</span>
+          <span class="text-xs font-medium {{ text_colors }}">Piano: {{ stato }}</span>
+        </div>
+        <a href="/{{ tenant.slug }}/admin/sottoscrizioni" class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-xs font-medium bg-white dark:bg-gray-900 {{ text_colors }} border border-current hover:opacity-75 transition">
+          <i class="ri-arrow-up-line w-3 h-3"></i>
+          Fai Upgrade
+        </a>
+        </div>
+      {% else %}
+        <div class="mt-4 p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+        <span class="text-xs font-medium text-gray-600 dark:text-gray-400">
+          <i class="ri-alert-line mr-1"></i>Nessuna sottoscrizione
+        </span>
+        </div>
+      {% endif %}
+    {% else %}
+
+    {% endif %}
+
 
         <!-- Footer -->
         <li class="mt-auto pt-4 border-t border-gray-200 dark:border-gray-800">
           <div class="flex items-center justify-between relative" x-data="{ open: false }">
             <button @click="open = !open" class="flex-1 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 px-2 py-2 rounded">
               <div class="font-medium">{{ utente.nome }}</div>
-              <div class="text-xs text-gray-500 dark:text-gray-400">{{ tenant.slug }} | {{ ruolo_corrente or "No Ruolo" }}</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">
+                  {{ tenant.slug }} |
+                {% if ruolo_menu == "superutente" %}
+                  Superutente
+                {% elif ruolo_menu == "collaboratore" %} 
+                  Collaboratore 
+                {% elif ruolo_menu == "moderatore" %}
+                  Moderatore
+                {% else %} 
+                  Utente 
+                {% endif %}
+              </div>
             </button>
             {% include "components/theme_selector.html" %}
             
             <!-- Dropdown Menu -->
             <div @click.away="open = false" x-show="open" x-transition class="absolute bottom-16 left-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 w-48">
-              <a href="#" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <i class="ri-settings-3-line mr-2"></i> Impostazioni {{ ruolo_corrente or " - " }}
+
+              <a href="/{{ tenant.slug }}/admin/impostazioni" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+                <i class="ri-settings-3-line mr-2"></i> Impostazioni
               </a>
+
+              {% if ruolo_menu == "superutente" %}
+
+              <a href="/{{ tenant.slug }}/admin/sottoscrizioni" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+                <i class="ri-price-tag-3-line mr-2"></i> Piani e Prezzi
+              </a>
+
+              {% else %}
+
+              {% endif %}
+
               <form action="/auth/logout" method="post" class="block">
                 <button type="submit" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 border-t border-gray-200 dark:border-gray-700">
                   <i class="ri-logout-box-r-line mr-2"></i> Logout
                 </button>
               </form>
+
+
             </div>
           </div>
         </li>

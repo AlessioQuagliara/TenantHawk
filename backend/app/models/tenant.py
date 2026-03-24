@@ -16,6 +16,7 @@ from app.core.database import Base
 
 if TYPE_CHECKING:
     from app.models.utente import Utente, UtenteRuoloTenant
+    from app.models.sottoscrizione import Sottoscrizione
 
 
 # -----------------------------------------------------------------------------
@@ -36,6 +37,8 @@ class UtenteRuolo(str, enum.Enum):
     COLLABORATORE = "collaboratore"
     MODERATORE = "moderatore"
     UTENTE = "utente"
+    CLIENTE = "cliente"
+    FORNITORE = "fornitore"
 
 
 # -----------------------------------------------------------------------------
@@ -81,4 +84,9 @@ class Tenant(Base):
     
     ruoli_utenti: Mapped[List["UtenteRuoloTenant"]] = relationship(
         back_populates="tenant",
+    )
+
+    sottoscrizione: Mapped["Sottoscrizione | None"] = relationship(
+        back_populates="tenant", 
+        uselist=False
     )

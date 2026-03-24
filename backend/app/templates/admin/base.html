@@ -8,26 +8,50 @@
 
 {% block content %}
 
+{% set ruolo_menu = ruolo_corrente or "utente" %}
+
 <div class="min-h-screen bg-gray-50 dark:bg-gray-950">
 
   {# Desktop sidebar (fixed) #}
   {% include "admin/partials/sidebar.html" %}
 
   {# Main column: offset by sidebar width on lg #}
-  <div class="lg:pl-72">
+  <div
+    class="lg:pl-72"
+    x-data="{ mobileMenuOpen: false }"
+    @keydown.escape.window="mobileMenuOpen = false"
+  >
 
     {# Topbar #}
     <header class="sticky top-0 z-20 bg-white/80 dark:bg-gray-950/80 backdrop-blur border-b border-gray-200 dark:border-gray-800">
-      <div class="h-16 flex items-center justify-between px-4 sm:px-6" x-data="{ mobileMenuOpen: false }">
+      <div class="h-16 flex items-center justify-between px-4 sm:px-6">
 
         <div class="flex items-center gap-3">
           {# Mobile menu button #}
-          <button @click="mobileMenuOpen = !mobileMenuOpen" type="button" class="lg:hidden p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800" aria-label="Apri menu">
-            <span class="text-lg">☰</span>
+          <button
+            type="button"
+            class="lg:hidden p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
+            aria-label="Apri menu"
+            aria-controls="mobile-admin-menu"
+            :aria-expanded="mobileMenuOpen ? 'true' : 'false'"
+            @click="mobileMenuOpen = !mobileMenuOpen"
+          >
+            <span x-show="!mobileMenuOpen" aria-hidden="true" class="text-lg">☰</span>
+            <span x-show="mobileMenuOpen" x-cloak aria-hidden="true" class="text-lg">✕</span>
           </button>
 
           <div>
-            <div class="text-xs text-gray-500 dark:text-gray-400">Admin</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">
+              {% if ruolo_menu == "superutente" %}
+              Superutente
+              {% elif ruolo_menu == "collaboratore" %} 
+              Collaboratore 
+              {% elif ruolo_menu == "moderatore" %}
+              Moderatore
+              {% else %} 
+              Utente 
+              {% endif %}
+            </div>
             <div class="text-base font-semibold text-gray-900 dark:text-gray-100">
               {% block page_title %}{% block admin_heading %}Dashboard{% endblock %}{% endblock %}
             </div>
@@ -52,16 +76,112 @@
         </div>
       </div>
 
-      {# Mobile sidebar menu #}
-      <div x-show="mobileMenuOpen" @click.away="mobileMenuOpen = false" class="lg:hidden overflow-y-auto border-t border-gray-200 dark:border-gray-800">
-        <div class="px-2 pt-2 pb-3 space-y-1">
-          <a href="/admin/dashboard" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800">
-            <i class="ri-pie-chart-2-line mr-2"></i> Dashboard
-          </a>
-          <!-- altre voci del menu mobile possono essere aggiunte qui -->
-        </div>
-      </div>
     </header>
+
+    {# Mobile sidebar drawer #}
+    {% set admin_prefix = '/' ~ tenant.slug ~ '/admin' if tenant is defined and tenant and tenant.slug else '/admin' %}
+    {% set ruolo_menu_mobile = ruolo_corrente or "utente" %}
+    <div
+      id="mobile-admin-menu"
+      x-show="mobileMenuOpen"
+      x-cloak
+      x-transition.opacity.duration.150ms
+      class="fixed inset-0 z-30 lg:hidden"
+      role="dialog"
+      aria-modal="true"
+    >
+      <button
+        type="button"
+        class="absolute inset-0 bg-black/40 backdrop-blur-[1px]"
+        @click="mobileMenuOpen = false"
+        aria-label="Chiudi menu mobile"
+      ></button>
+
+      <aside
+        class="absolute inset-y-0 left-0 w-72 max-w-[85vw] overflow-y-auto border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4"
+        x-transition:enter="transform transition ease-out duration-200"
+        x-transition:enter-start="-translate-x-full"
+        x-transition:enter-end="translate-x-0"
+        x-transition:leave="transform transition ease-in duration-150"
+        x-transition:leave-start="translate-x-0"
+        x-transition:leave-end="-translate-x-full"
+      >
+        <div class="mb-4 flex items-center justify-between border-b border-gray-200 dark:border-gray-800 pb-3">
+          <div class="flex items-center gap-2">
+            <img src="{{ url_for('static', path='/images/mini-logo.png') }}" class="h-8 w-8 dark:hidden" alt="Logo">
+            <img src="{{ url_for('static', path='/images/mini-logo-white.png') }}" class="hidden h-8 w-8 dark:block" alt="Logo">
+            <span class="font-semibold text-gray-900 dark:text-gray-100">SaaS Template</span>
+          </div>
+          <button
+            type="button"
+            class="rounded-md p-2 hover:bg-gray-100 dark:hover:bg-gray-800"
+            @click="mobileMenuOpen = false"
+            aria-label="Chiudi menu"
+          >
+            <i class="ri-close-line text-lg"></i>
+          </button>
+        </div>
+
+        <nav class="space-y-1">
+          {% set active_dashboard = request.url.path.startswith(admin_prefix ~ '/dashboard') %}
+          <a
+            href="{{ admin_prefix }}/dashboard"
+            @click="mobileMenuOpen = false"
+            class="flex items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-medium {% if active_dashboard %}bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white{% else %}text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800{% endif %}"
+          >
+            <i class="ri-pie-chart-2-line w-5 h-5 text-gray-400"></i>
+            Dashboard
+          </a>
+
+          {% if ruolo_menu_mobile == "superutente" %}
+            {% set active_users = request.url.path.startswith(admin_prefix ~ '/users') %}
+            <a
+              href="{{ admin_prefix }}/users"
+              @click="mobileMenuOpen = false"
+              class="flex items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-medium {% if active_users %}bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white{% else %}text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800{% endif %}"
+            >
+              <i class="ri-group-line w-5 h-5 text-gray-400"></i>
+              Utenti
+            </a>
+
+            {% set active_subscription = request.url.path.startswith(admin_prefix ~ '/sottoscrizioni') %}
+            <a
+              href="{{ admin_prefix }}/sottoscrizioni"
+              @click="mobileMenuOpen = false"
+              class="flex items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-medium {% if active_subscription %}bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white{% else %}text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800{% endif %}"
+            >
+              <i class="ri-vip-crown-2-line w-5 h-5 text-gray-400"></i>
+              Sottoscrizioni
+            </a>
+          {% endif %}
+
+          {% set active_settings = request.url.path.startswith(admin_prefix ~ '/impostazioni') %}
+          <a
+            href="{{ admin_prefix }}/impostazioni"
+            @click="mobileMenuOpen = false"
+            class="flex items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-medium {% if active_settings %}bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white{% else %}text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800{% endif %}"
+          >
+            <i class="ri-settings-3-line w-5 h-5 text-gray-400"></i>
+            Impostazioni
+          </a>
+        </nav>
+
+
+        <div class="mt-6 border-t border-gray-200 dark:border-gray-800 pt-4">
+          <div class="mb-3 text-xs text-gray-500 dark:text-gray-400">
+            {{ tenant.slug if tenant is defined and tenant and tenant.slug else "tenant" }} | {{ ruolo_corrente or "No Ruolo" }}
+          </div>
+          <form action="/auth/logout" method="post">
+            <button
+              type="submit"
+              class="w-full rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
+            >
+              <i class="ri-logout-box-r-line mr-2"></i> Logout
+            </button>
+          </form>
+        </div>
+      </aside>
+    </div>
 
     <script>
       function updateDateTime() {

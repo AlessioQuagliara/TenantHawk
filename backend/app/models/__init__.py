@@ -6,6 +6,8 @@ from .tenant import Tenant, UtenteRuolo # noqa: F401
 
 from .utente import Utente, UtenteRuoloTenant, TokenResetPassword # noqa: F401
 
+from .sottoscrizione import Sottoscrizione, Sottoscrizioni, SottoscrizioniStati  # noqa: F401
+
 __all__ = [
     "Base",
     "Tenant",
@@ -13,4 +15,7 @@ __all__ = [
     "TokenResetPassword",
     "UtenteRuoloTenant",
     "UtenteRuolo",
+    "SottoscrizioniStati",
+    "Sottoscrizioni",
+    "Sottoscrizione",
 ]

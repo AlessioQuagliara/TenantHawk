@@ -118,3 +118,59 @@ def manda_conferma_account(
         logger.exception("Template email conferma account non trovato.")
     except Exception:
         logger.exception("Errore durante invio email conferma account.")
+
+
+def manda_invito_utente(
+    to_email: str,
+    conferma_link: str,
+    nome_tenant: str,
+    password_temporanea: str | None,
+    ruolo: str,
+    usa_password_attuale: bool = False,
+) -> None:
+    try:
+        html = _render_email_template(
+            "invite_user.html",
+            conferma_link=conferma_link,
+            nome_tenant=nome_tenant,
+            password_temporanea=password_temporanea,
+            ruolo=ruolo,
+            usa_password_attuale=usa_password_attuale,
+        )
+        _invia_html_resend(
+            destinatario=to_email,
+            oggetto=f"Invito a {nome_tenant}",
+            html=html,
+        )
+    except TemplateNotFound:
+        logger.exception("Template email invito utente non trovato.")
+    except Exception:
+        logger.exception("Errore durante invio email invito utente.")
+
+
+def manda_notifica_sottoscrizione(
+    to_email: str,
+    nome_tenant: str,
+    operazione: str,
+    stato: str | None = None,
+    piano: str | None = None,
+    dettagli: str | None = None,
+) -> None:
+    try:
+        html = _render_email_template(
+            "subscription_event.html",
+            nome_tenant=nome_tenant,
+            operazione=operazione,
+            stato=stato or "n/d",
+            piano=piano or "n/d",
+            dettagli=dettagli or "",
+        )
+        _invia_html_resend(
+            destinatario=to_email,
+            oggetto=f"Aggiornamento abbonamento - {nome_tenant}",
+            html=html,
+        )
+    except TemplateNotFound:
+        logger.exception("Template email evento abbonamento non trovato.")
+    except Exception:
+        logger.exception("Errore durante invio email evento abbonamento.")

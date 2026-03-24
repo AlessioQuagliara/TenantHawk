@@ -1,0 +1,126 @@
+<!-- ======================================================================================= -->
+<!-- backend/app/templates/admin/sottoscrizioni/gestisci.html -->
+<!-- ======================================================================================= -->
+
+{% extends "admin/base.html" %}
+
+{% from "components/badges.html" import info, success, warning, danger %}
+{% from "components/buttons.html" import primary, secondary, danger as danger_btn %}
+
+{% block admin_title %}Gestisci Piano{% endblock %}
+{% block admin_heading %}Gestisci Piano{% endblock %}
+
+{% block admin_content %}
+<div class="space-y-6">
+  <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Gestione piano</h1>
+      <p class="text-sm text-gray-600 dark:text-gray-400">
+        Upgrade, downgrade, rinnovo e annullamento della sottoscrizione Stripe.
+      </p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      {{ info("Tenant: " ~ tenant.slug) }}
+      {% if sottoscrizione %}
+        {{ success("Piano: " ~ sottoscrizione.piano.value|upper) }}
+      {% endif %}
+    </div>
+  </div>
+
+  {% if ok %}
+    <div class="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800 dark:border-emerald-700/40 dark:bg-emerald-900/20 dark:text-emerald-200">
+      <i class="ri-checkbox-circle-line mt-0.5"></i>
+      <p class="text-sm font-medium">{{ ok }}</p>
+    </div>
+  {% endif %}
+
+  {% if errore %}
+    <div class="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-800 dark:border-red-700/40 dark:bg-red-900/20 dark:text-red-200">
+      <i class="ri-close-circle-line mt-0.5"></i>
+      <p class="text-sm font-medium">{{ errore }}</p>
+    </div>
+  {% endif %}
+
+  {% if not stripe_enabled %}
+    <section class="rounded-xl border border-amber-200 bg-amber-50 p-5 text-amber-800 shadow-sm dark:border-amber-700/40 dark:bg-amber-900/20 dark:text-amber-200">
+      <div class="mb-2 flex items-center gap-2 text-base font-semibold">
+        <i class="ri-alert-line"></i>
+        Configurazione Stripe incompleta
+      </div>
+      <p class="text-sm">
+        Verifica in `.env` le variabili `APP_STRIPE_SECRET_KEY` e i `APP_STRIPE_PRICE_*`.
+      </p>
+    </section>
+  {% endif %}
+
+  <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+    {% for p in piani %}
+      {% set is_current = piano_corrente == p.key %}
+      {% set disabled_same_plan = is_current and ha_sottoscrizione_stripe and not is_trial %}
+      {% set disabled = (not stripe_enabled) or (not p.price_id) or disabled_same_plan %}
+      <section class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        <div class="mb-3 flex items-center justify-between">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ p.label }}</h2>
+          {% if is_current %}
+            {{ success("Attuale") }}
+          {% elif not p.price_id %}
+            {{ warning("Price mancante") }}
+          {% endif %}
+        </div>
+
+        <p class="text-sm text-gray-600 dark:text-gray-400">
+          {% if p.key == "base" %}
+            Ideale per piccoli team.
+          {% elif p.key == "pro" %}
+            Più utenti e funzioni avanzate.
+          {% else %}
+            Per strutture con esigenze estese.
+          {% endif %}
+        </p>
+
+        <form method="post" action="/{{ tenant.slug }}/admin/sottoscrizioni/gestisci/piano" class="mt-5" hx-boost="false">
+          <input type="hidden" name="piano" value="{{ p.key }}">
+          {% if disabled %}
+            {{ secondary("Seleziona " ~ p.label, attrs={"disabled": "disabled"}) }}
+          {% else %}
+            {{ primary("Seleziona " ~ p.label, type="submit") }}
+          {% endif %}
+        </form>
+      </section>
+    {% endfor %}
+  </div>
+
+  <section class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+    <div class="mb-4 flex items-center gap-2">
+      <i class="ri-settings-4-line text-primary-600 dark:text-primary-300"></i>
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Operazioni Stripe</h2>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2">
+      <form method="post" action="/{{ tenant.slug }}/admin/sottoscrizioni/gestisci/portal" hx-boost="false">
+        {% if stripe_enabled %}
+          {{ secondary("Apri Billing Portal", type="submit") }}
+        {% else %}
+          {{ secondary("Apri Billing Portal", attrs={"disabled": "disabled"}) }}
+        {% endif %}
+      </form>
+
+      <form method="post" action="/{{ tenant.slug }}/admin/sottoscrizioni/gestisci/annulla">
+        {% if stripe_enabled and sottoscrizione and sottoscrizione.id_stripe_sottoscrizione and not cancel_at_period_end %}
+          {{ danger_btn("Annulla a fine periodo", type="submit") }}
+        {% else %}
+          {{ danger_btn("Annulla a fine periodo", attrs={"disabled": "disabled"}) }}
+        {% endif %}
+      </form>
+
+      <form method="post" action="/{{ tenant.slug }}/admin/sottoscrizioni/gestisci/riattiva">
+        {% if stripe_enabled and sottoscrizione and sottoscrizione.id_stripe_sottoscrizione and cancel_at_period_end %}
+          {{ primary("Riattiva rinnovo", type="submit") }}
+        {% else %}
+          {{ primary("Riattiva rinnovo", attrs={"disabled": "disabled"}) }}
+        {% endif %}
+      </form>
+    </div>
+  </section>
+</div>
+{% endblock %}

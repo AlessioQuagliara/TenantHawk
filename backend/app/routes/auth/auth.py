@@ -24,11 +24,11 @@ from fastapi import APIRouter, Form, Request, status, Depends, HTTPException, Re
 
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from sqlalchemy import select
+from sqlalchemy import and_, select
 
 from sqlalchemy.exc import IntegrityError, ProgrammingError, SQLAlchemyError
 
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -44,7 +44,14 @@ from app.core.config import settings
 
 from app.core.csrf import csrf_protezione
 
-from app.core.auth import prendi_utente_corrente
+from app.core.auth import SESSION_COOKIE_NAME, prendi_utente_corrente
+
+from app.core.billing import (
+    applica_policy_disattivazione_tenant,
+    crea_sottoscrizione_trial_tenant,
+)
+
+from app.core.tenancy import tenant_ha_accesso
 
 from app.models import Utente, Tenant, UtenteRuoloTenant, UtenteRuolo
 
@@ -58,6 +65,11 @@ serializer_conferma_account = URLSafeTimedSerializer(
     settings.secret_key,
     salt="conferma-account",
 )
+serializer_selezione_tenant_login = URLSafeTimedSerializer(
+    settings.secret_key,
+    salt="selezione-tenant-login",
+)
+SELEZIONE_TENANT_MAX_AGE_SECONDI = 600
 
 # -----------------------------------------------------------------------------
 # NORMALIZZATORI TESTO PER SANIFICAZIONE
@@ -85,17 +97,16 @@ def nuovo_csrf_form() -> tuple[str, str]:
 
 
 def contesto_registrazione(
-    request: Request,
+    _request: Request,
     *,
     nome_tenant: str = "",
     slug_tenant: str = "",
     nome_utente: str = "",
     email: str = "",
     errore: str | None = None,
-) -> dict[str, str | Request | None]:
+) -> dict[str, str | None]:
     sessione_temporanea, token_csrf = nuovo_csrf_form()
     return {
-        "request": request,
         "nome_tenant": nome_tenant,
         "slug_tenant": slug_tenant,
         "nome_utente": nome_utente,
@@ -109,6 +120,162 @@ def contesto_registrazione(
 def costruisci_url_assoluto(percorso: str) -> str:
     return f"{settings.app_base_url.rstrip('/')}/{percorso.lstrip('/')}"
 
+
+def estrai_slug_tenant_da_next(next_path: str | None) -> str | None:
+    if not next_path:
+        return None
+    match = re.match(r"^/([^/]+)/admin(?:/|$)", next_path.strip())
+    if not match:
+        return None
+    return match.group(1)
+
+
+def contesto_login(
+    *,
+    next_path: str = "/",
+    errore: str | None = None,
+    success: str | None = None,
+) -> dict[str, str | None]:
+    sessione_temporanea, token_csrf = nuovo_csrf_form()
+    return {
+        "next": next_path or "/",
+        "error": errore,
+        "success": success,
+        "csrf_token": token_csrf,
+        "sessione_temp": sessione_temporanea,
+    }
+
+
+async def carica_tenant_accessibili_utente(
+    db: AsyncSession,
+    id_utente: int,
+) -> list[Tenant]:
+    risultato_tenant = await db.execute(
+        select(Tenant)
+        .options(selectinload(Tenant.sottoscrizione))
+        .join(
+            UtenteRuoloTenant,
+            and_(
+                UtenteRuoloTenant.tenant_id == Tenant.id,
+                UtenteRuoloTenant.utente_id == id_utente,
+            ),
+        )
+        .where(Tenant.attivo.is_(True))
+        .order_by(Tenant.nome.asc(), Tenant.id.asc())
+    )
+    tenant_risultati: list[Tenant] = []
+    for tenant_item in risultato_tenant.scalars().all():
+        tenant_eliminato = await applica_policy_disattivazione_tenant(
+            db,
+            tenant_obj=tenant_item,
+        )
+        if tenant_eliminato:
+            continue
+        # Include anche tenant sospesi/scaduti: l'utente deve poter accedere
+        # all'area sottoscrizioni per riattivare il piano.
+        tenant_risultati.append(tenant_item)
+    return tenant_risultati
+
+
+def contesto_selezione_tenant(
+    *,
+    token_selezione: str,
+    tenant_candidati: list[Tenant],
+    tenant_selezionato_slug: str | None,
+    email_utente: str,
+    next_path: str,
+    errore: str | None = None,
+) -> dict[str, object]:
+    sessione_temporanea, token_csrf = nuovo_csrf_form()
+    opzioni_tenant = [
+        {"slug": tenant.slug, "nome": tenant.nome}
+        for tenant in tenant_candidati
+    ]
+    slug_disponibili = {str(item["slug"]) for item in opzioni_tenant}
+    if not tenant_selezionato_slug or tenant_selezionato_slug not in slug_disponibili:
+        tenant_selezionato_slug = str(opzioni_tenant[0]["slug"])
+
+    return {
+        "error": errore,
+        "csrf_token": token_csrf,
+        "sessione_temp": sessione_temporanea,
+        "token_selezione": token_selezione,
+        "tenant_options": opzioni_tenant,
+        "tenant_selected_slug": tenant_selezionato_slug,
+        "email": email_utente,
+        "next": next_path or "/",
+    }
+
+
+async def chiudi_sessione_corrente_browser(request: Request) -> None:
+    id_sessione_corrente = request.cookies.get(SESSION_COOKIE_NAME)
+    if id_sessione_corrente:
+        await gestore_sessioni.cancella_sessione(id_sessione_corrente)
+
+
+def costruisci_redirect_post_login(tenant: Tenant, next_path: str) -> str:
+    if tenant_ha_accesso(tenant):
+        redirect_url = f"/{tenant.slug}/admin/dashboard"
+    else:
+        messaggio = quote_plus(
+            "Piano non attivo: completa o aggiorna l'abbonamento per ripristinare l'accesso."
+        )
+        redirect_url = f"/{tenant.slug}/admin/sottoscrizioni?errore={messaggio}"
+
+    if next_path and next_path != "/" and next_path.startswith("/"):
+        slug_tenant_next = estrai_slug_tenant_da_next(next_path)
+        if slug_tenant_next is None or slug_tenant_next == tenant.slug:
+            if tenant_ha_accesso(tenant):
+                redirect_url = next_path
+            elif next_path.startswith(f"/{tenant.slug}/admin/sottoscrizioni"):
+                redirect_url = next_path
+    return redirect_url
+
+
+async def crea_risposta_login_ok(
+    request: Request,
+    *,
+    utente: Utente,
+    tenant: Tenant,
+    next_path: str,
+) -> Response | RedirectResponse:
+    await chiudi_sessione_corrente_browser(request)
+
+    id_sessione_utente = await gestore_sessioni.crea_sessione(
+        id_utente=utente.id,
+        id_tenant=tenant.id,
+        email=utente.email,
+    )
+
+    redirect_url = costruisci_redirect_post_login(tenant, next_path)
+
+    if request.headers.get("HX-Request") == "true":
+        risposta = Response(status_code=204)
+        risposta.set_cookie(
+            SESSION_COOKIE_NAME,
+            id_sessione_utente,
+            httponly=True,
+            secure=False,
+            samesite="lax",
+            max_age=86400,
+        )
+        risposta.headers["HX-Redirect"] = redirect_url
+        return risposta
+
+    risposta = RedirectResponse(
+        url=redirect_url,
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+    risposta.set_cookie(
+        SESSION_COOKIE_NAME,
+        id_sessione_utente,
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        max_age=86400,
+    )
+    return risposta
+
 # -----------------------------------------------------------------------------
 # LOGIN - GET
 # -----------------------------------------------------------------------------
@@ -121,20 +288,14 @@ async def login_page(
     success: str | None = None,
 ):
     """Pagina login con token CSRF"""
-    # Genera sessione temporanea per CSRF
-    sessione_temp = secrets.token_urlsafe(16)
-    csrf_token = csrf_protezione.genera_token(sessione_temp)
-    
     return templates.TemplateResponse(
+        request,
         "auth/login.html",
-        {
-            "request": request,
-            "next": next or "/",
-            "error": error,
-            "success": success,
-            "csrf_token": csrf_token,
-            "sessione_temp": sessione_temp,
-        },
+        contesto_login(
+            next_path=next or "/",
+            errore=error,
+            success=success,
+        ),
     )
 
 
@@ -149,25 +310,20 @@ async def login_submit(
     password: str = Form(...),
     csrf_token: str = Form(...),
     sessione_temp: str = Form(...),
-    next: str = Form("/"),
+    next_path: str = Form("/", alias="next"),
     db: AsyncSession = Depends(get_db),
 ):
     """Login con CSRF e sessione Redis"""
     
     # ---- Verifica CSRF --------------------------------------
     if not csrf_protezione.valida_token(sessione_temp, csrf_token):
-        nuova_sessione_temp = secrets.token_urlsafe(16)
-        nuovo_csrf = csrf_protezione.genera_token(nuova_sessione_temp)
-        
         return templates.TemplateResponse(
+            request,
             "auth/login.html",
-            {
-                "request": request,
-                "next": next,
-                "error": "Token CSRF non valido",
-                "csrf_token": nuovo_csrf,
-                "sessione_temp": nuova_sessione_temp,
-            },
+            contesto_login(
+                next_path=next_path,
+                errore="Token CSRF non valido",
+            ),
             status_code=200,
         )
     
@@ -187,126 +343,206 @@ async def login_submit(
             password_valida = await verifica_password_async(password, utente.hashed_password)
         
         if not utente or not password_valida:
-            nuova_sessione_temp = secrets.token_urlsafe(16)
-            nuovo_csrf = csrf_protezione.genera_token(nuova_sessione_temp)
-            
             return templates.TemplateResponse(
+                request,
                 "auth/login.html",
-                {
-                    "request": request,
-                    "next": next,
-                    "error": "Credenziali non valide",
-                    "csrf_token": nuovo_csrf,
-                    "sessione_temp": nuova_sessione_temp,
-                },
+                contesto_login(
+                    next_path=next_path,
+                    errore="Credenziali non valide",
+                ),
                 status_code=200,
             )
 
         if not utente.attivo:
-            nuova_sessione_temp = secrets.token_urlsafe(16)
-            nuovo_csrf = csrf_protezione.genera_token(nuova_sessione_temp)
             return templates.TemplateResponse(
+                request,
                 "auth/login.html",
-                {
-                    "request": request,
-                    "next": next,
-                    "error": "Account non attivo. Controlla l'email di conferma.",
-                    "csrf_token": nuovo_csrf,
-                    "sessione_temp": nuova_sessione_temp,
-                },
+                contesto_login(
+                    next_path=next_path,
+                    errore="Account non attivo. Controlla l'email di conferma.",
+                ),
                 status_code=200,
             )
         
-        # ---- Verifica tenant ------------------------------------
-        risultato_tenant = await db.execute(
-            select(Tenant).where(
-                Tenant.id == utente.tenant_id,
-                Tenant.attivo.is_(True),
-            )
-        )
-        
-        tenant = risultato_tenant.scalar_one_or_none()
+        # ---- Carica tenant accessibili ---------------------------------------
+        slug_tenant_next = estrai_slug_tenant_da_next(next_path)
+        tenant_candidati = await carica_tenant_accessibili_utente(db, utente.id)
     except ProgrammingError:
         logger.exception("Login fallito: schema DB non pronto (email=%s)", email)
-        nuova_sessione_temp = secrets.token_urlsafe(16)
-        nuovo_csrf = csrf_protezione.genera_token(nuova_sessione_temp)
         return templates.TemplateResponse(
+            request,
             "auth/login.html",
-            {
-                "request": request,
-                "next": next,
-                "error": "Database non inizializzato. Esegui le migrazioni e riprova.",
-                "csrf_token": nuovo_csrf,
-                "sessione_temp": nuova_sessione_temp,
-            },
+            contesto_login(
+                next_path=next_path,
+                errore="Database non inizializzato. Esegui le migrazioni e riprova.",
+            ),
             status_code=200,
         )
     except SQLAlchemyError:
         logger.exception("Login fallito: errore database inatteso (email=%s)", email)
-        nuova_sessione_temp = secrets.token_urlsafe(16)
-        nuovo_csrf = csrf_protezione.genera_token(nuova_sessione_temp)
         return templates.TemplateResponse(
+            request,
             "auth/login.html",
-            {
-                "request": request,
-                "next": next,
-                "error": "Errore temporaneo del servizio. Riprova tra poco.",
-                "csrf_token": nuovo_csrf,
-                "sessione_temp": nuova_sessione_temp,
-            },
+            contesto_login(
+                next_path=next_path,
+                errore="Errore temporaneo del servizio. Riprova tra poco.",
+            ),
             status_code=200,
         )
-    
-    if not tenant:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Tenant non disponibile",
+
+    if not tenant_candidati:
+        return templates.TemplateResponse(
+            request,
+            "auth/login.html",
+            contesto_login(
+                next_path=next_path,
+                errore="Nessun tenant disponibile per questo account.",
+            ),
+            status_code=200,
         )
-    
-    # ---- Crea sessione Redis --------------------------------
-    id_sessione_utente = await gestore_sessioni.crea_sessione(
-        id_utente=utente.id,
-        id_tenant=tenant.id,
-        email=utente.email,
-    )
-    
-    # ---- Redirect -------------------------------------------
-    redirect_url = (
-        next
-        if next and next != "/"
-        else f"/{tenant.slug}/admin/dashboard"
-    )
-    
-    # HTMX
-    if request.headers.get("HX-Request") == "true":
-        risposta = Response(status_code=204)
-        risposta.set_cookie(
-            "id_sessione_utente",
-            id_sessione_utente,
-            httponly=True,
-            secure=False,
-            samesite="lax",
-            max_age=86400,
+
+    if len(tenant_candidati) > 1:
+        token_selezione = serializer_selezione_tenant_login.dumps(
+            {"id_utente": utente.id, "next": next_path}
         )
-        risposta.headers["HX-Redirect"] = redirect_url
-        return risposta
-    
-    # Normale
-    risposta = RedirectResponse(
-        url=redirect_url,
-        status_code=status.HTTP_303_SEE_OTHER,
+        tenant_selezionato_slug = None
+        if slug_tenant_next:
+            tenant_selezionato_slug = next(
+                (
+                    tenant_item.slug
+                    for tenant_item in tenant_candidati
+                    if tenant_item.slug == slug_tenant_next
+                ),
+                None,
+            )
+        if tenant_selezionato_slug is None:
+            tenant_selezionato_slug = next(
+                (
+                    tenant_item.slug
+                    for tenant_item in tenant_candidati
+                    if tenant_item.id == utente.tenant_id
+                ),
+                None,
+            )
+        return templates.TemplateResponse(
+            request,
+            "auth/select_tenant.html",
+            contesto_selezione_tenant(
+                token_selezione=token_selezione,
+                tenant_candidati=tenant_candidati,
+                tenant_selezionato_slug=tenant_selezionato_slug,
+                email_utente=utente.email,
+                next_path=next_path,
+            ),
+            status_code=200,
+        )
+
+    return await crea_risposta_login_ok(
+        request,
+        utente=utente,
+        tenant=tenant_candidati[0],
+        next_path=next_path,
     )
-    
-    risposta.set_cookie(
-        "id_sessione_utente",
-        id_sessione_utente,
-        httponly=True,
-        secure=False,
-        samesite="lax",
-        max_age=86400,
+
+
+@router.post("/select-tenant", response_class=HTMLResponse)
+async def select_tenant_submit(
+    request: Request,
+    token_selezione: str = Form(...),
+    tenant_slug: str = Form(...),
+    csrf_token: str = Form(...),
+    sessione_temp: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        payload = serializer_selezione_tenant_login.loads(
+            token_selezione,
+            max_age=SELEZIONE_TENANT_MAX_AGE_SECONDI,
+        )
+    except SignatureExpired:
+        errore = quote_plus("La selezione tenant è scaduta. Effettua di nuovo il login.")
+        return RedirectResponse(
+            url=f"/auth/login?error={errore}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+    except BadSignature:
+        errore = quote_plus("Token selezione tenant non valido.")
+        return RedirectResponse(
+            url=f"/auth/login?error={errore}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+    id_utente = payload.get("id_utente")
+    next_path = str(payload.get("next") or "/")
+    if not id_utente:
+        errore = quote_plus("Sessione di login non valida. Riprova.")
+        return RedirectResponse(
+            url=f"/auth/login?error={errore}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+    risultato_utente = await db.execute(
+        select(Utente).where(
+            Utente.id == int(id_utente),
+            Utente.attivo.is_(True),
+        )
     )
-    
-    return risposta
+    utente = risultato_utente.scalar_one_or_none()
+    if utente is None:
+        errore = quote_plus("Utente non disponibile. Effettua di nuovo il login.")
+        return RedirectResponse(
+            url=f"/auth/login?error={errore}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+    tenant_candidati = await carica_tenant_accessibili_utente(db, utente.id)
+    if not tenant_candidati:
+        errore = quote_plus("Nessun tenant disponibile per questo account.")
+        return RedirectResponse(
+            url=f"/auth/login?error={errore}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+    if not csrf_protezione.valida_token(sessione_temp, csrf_token):
+        return templates.TemplateResponse(
+            request,
+            "auth/select_tenant.html",
+            contesto_selezione_tenant(
+                token_selezione=token_selezione,
+                tenant_candidati=tenant_candidati,
+                tenant_selezionato_slug=tenant_slug,
+                email_utente=utente.email,
+                next_path=next_path,
+                errore="Token CSRF non valido",
+            ),
+            status_code=200,
+        )
+
+    tenant = next(
+        (tenant_item for tenant_item in tenant_candidati if tenant_item.slug == tenant_slug),
+        None,
+    )
+    if tenant is None:
+        return templates.TemplateResponse(
+            request,
+            "auth/select_tenant.html",
+            contesto_selezione_tenant(
+                token_selezione=token_selezione,
+                tenant_candidati=tenant_candidati,
+                tenant_selezionato_slug=tenant_slug,
+                email_utente=utente.email,
+                next_path=next_path,
+                errore="Seleziona un tenant valido.",
+            ),
+            status_code=200,
+        )
+
+    return await crea_risposta_login_ok(
+        request,
+        utente=utente,
+        tenant=tenant,
+        next_path=next_path,
+    )
 
 
 # -----------------------------------------------------------------------------
@@ -319,7 +555,7 @@ async def logout_submit(
     utente: Utente = Depends(prendi_utente_corrente),
 ):
     """Logout con cancellazione sessione Redis"""
-    id_sessione_utente = request.cookies.get("id_sessione_utente")
+    id_sessione_utente = request.cookies.get(SESSION_COOKIE_NAME)
     
     if id_sessione_utente:
         await gestore_sessioni.cancella_sessione(id_sessione_utente)
@@ -328,7 +564,7 @@ async def logout_submit(
         url="/auth/login",
         status_code=status.HTTP_303_SEE_OTHER,
     )
-    risposta.delete_cookie("id_sessione_utente")
+    risposta.delete_cookie(SESSION_COOKIE_NAME)
     
     return risposta
 
@@ -340,6 +576,7 @@ async def logout_submit(
 @router.get("/register", response_class=HTMLResponse)
 async def register_page(request: Request):
     return templates.TemplateResponse(
+        request,
         "auth/register.html",
         contesto_registrazione(request),
     )
@@ -369,6 +606,7 @@ async def register_submit(
 
     if not csrf_protezione.valida_token(sessione_temp, csrf_token):
         return templates.TemplateResponse(
+            request,
             "auth/register.html",
             contesto_registrazione(
                 request,
@@ -383,6 +621,7 @@ async def register_submit(
 
     if not nome_tenant:
         return templates.TemplateResponse(
+            request,
             "auth/register.html",
             contesto_registrazione(
                 request,
@@ -397,6 +636,7 @@ async def register_submit(
 
     if not email:
         return templates.TemplateResponse(
+            request,
             "auth/register.html",
             contesto_registrazione(
                 request,
@@ -411,6 +651,7 @@ async def register_submit(
 
     if password != conferma_password:
         return templates.TemplateResponse(
+            request,
             "auth/register.html",
             contesto_registrazione(
                 request,
@@ -425,6 +666,7 @@ async def register_submit(
 
     if len(password) < 8:
         return templates.TemplateResponse(
+            request,
             "auth/register.html",
             contesto_registrazione(
                 request,
@@ -440,6 +682,7 @@ async def register_submit(
     slug_tenant_finale = normalizza_slug_tenant(slug_tenant or nome_tenant)
     if not slug_tenant_finale:
         return templates.TemplateResponse(
+            request,
             "auth/register.html",
             contesto_registrazione(
                 request,
@@ -452,6 +695,9 @@ async def register_submit(
             status_code=200,
         )
 
+    richiede_conferma_email = True
+    invia_email_conferma = True
+
     try:
         risultato_tenant = await db.execute(
             select(Tenant).where(Tenant.slug == slug_tenant_finale)
@@ -459,6 +705,7 @@ async def register_submit(
         tenant_esistente = risultato_tenant.scalar_one_or_none()
         if tenant_esistente:
             return templates.TemplateResponse(
+                request,
                 "auth/register.html",
                 contesto_registrazione(
                     request,
@@ -475,19 +722,39 @@ async def register_submit(
             select(Utente).where(Utente.email == email)
         )
         utente_esistente = risultato_utente.scalar_one_or_none()
-        if utente_esistente:
-            return templates.TemplateResponse(
-                "auth/register.html",
-                contesto_registrazione(
-                    request,
-                    nome_tenant=nome_tenant,
-                    slug_tenant=slug_tenant_finale,
-                    nome_utente=nome_utente,
-                    email=email,
-                    errore="Email già registrata",
-                ),
-                status_code=200,
+        utente_owner: Utente
+        # Supporto multi-tenant: se la email esiste, riusa lo stesso account
+        # (solo dopo verifica password) e collega il nuovo tenant.
+        if utente_esistente is None:
+            richiede_conferma_email = True
+        else:
+            password_valida = await verifica_password_async(
+                password,
+                utente_esistente.hashed_password,
             )
+            if not password_valida:
+                return templates.TemplateResponse(
+                    request,
+                    "auth/register.html",
+                    contesto_registrazione(
+                        request,
+                        nome_tenant=nome_tenant,
+                        slug_tenant=slug_tenant_finale,
+                        nome_utente=nome_utente,
+                        email=email,
+                        errore=(
+                            "Questa email esiste già. "
+                            "Per creare un nuovo tenant inserisci la password corretta dell'account."
+                        ),
+                    ),
+                    status_code=200,
+                )
+
+            if nome_utente and not (utente_esistente.nome or "").strip():
+                utente_esistente.nome = nome_utente
+
+            utente_owner = utente_esistente
+            richiede_conferma_email = not bool(utente_esistente.attivo)
 
         nuovo_tenant = Tenant(
             slug=slug_tenant_finale,
@@ -496,19 +763,24 @@ async def register_submit(
         )
         db.add(nuovo_tenant)
         await db.flush()
-
-        nuovo_utente = Utente(
+        await crea_sottoscrizione_trial_tenant(
+            db,
             tenant_id=nuovo_tenant.id,
-            nome=nome_utente or None,
-            email=email,
-            hashed_password=hash_password(password),
-            attivo=False,
         )
-        db.add(nuovo_utente)
-        await db.flush()
+
+        if utente_esistente is None:
+            utente_owner = Utente(
+                tenant_id=nuovo_tenant.id,
+                nome=nome_utente or None,
+                email=email,
+                hashed_password=hash_password(password),
+                attivo=False,
+            )
+            db.add(utente_owner)
+            await db.flush()
 
         ruolo_tenant = UtenteRuoloTenant(
-            utente_id=nuovo_utente.id,
+            utente_id=utente_owner.id,
             tenant_id=nuovo_tenant.id,
             # Chi si registra creando il tenant è il proprietario iniziale.
             ruolo=UtenteRuolo.SUPERUTENTE,
@@ -516,22 +788,24 @@ async def register_submit(
         db.add(ruolo_tenant)
         await db.commit()
 
-        token_conferma = serializer_conferma_account.dumps(
-            {"id_utente": nuovo_utente.id, "email": nuovo_utente.email}
-        )
-        link_conferma = costruisci_url_assoluto(
-            f"/auth/confirm-account?token={token_conferma}"
-        )
-        background_tasks.add_task(
-            manda_conferma_account,
-            nuovo_utente.email,
-            link_conferma,
-            nome_tenant,
-        )
+        if invia_email_conferma:
+            token_conferma = serializer_conferma_account.dumps(
+                {"id_utente": utente_owner.id, "email": utente_owner.email}
+            )
+            link_conferma = costruisci_url_assoluto(
+                f"/auth/confirm-account?token={token_conferma}"
+            )
+            background_tasks.add_task(
+                manda_conferma_account,
+                utente_owner.email,
+                link_conferma,
+                nome_tenant,
+            )
     except ProgrammingError:
         await db.rollback()
         logger.exception("Registrazione fallita: schema DB non pronto (email=%s)", email)
         return templates.TemplateResponse(
+            request,
             "auth/register.html",
             contesto_registrazione(
                 request,
@@ -547,6 +821,7 @@ async def register_submit(
         await db.rollback()
         logger.exception("Registrazione fallita: vincolo DB violato (email=%s)", email)
         return templates.TemplateResponse(
+            request,
             "auth/register.html",
             contesto_registrazione(
                 request,
@@ -562,6 +837,7 @@ async def register_submit(
         await db.rollback()
         logger.exception("Registrazione fallita: errore database inatteso (email=%s)", email)
         return templates.TemplateResponse(
+            request,
             "auth/register.html",
             contesto_registrazione(
                 request,
@@ -574,10 +850,17 @@ async def register_submit(
             status_code=200,
         )
 
-    messaggio_successo = quote_plus(
-        "Registrazione completata. Controlla la tua email per confermare l'account."
-    )
-    url_redirect = f"/auth/login?success={messaggio_successo}"
+    if richiede_conferma_email:
+        messaggio_successo = quote_plus(
+            "Registrazione completata. Controlla la tua email per confermare l'account."
+        )
+        url_redirect = f"/auth/login?success={messaggio_successo}"
+    else:
+        messaggio_successo = quote_plus(
+            "Tenant creato con successo. Accedi per entrare nel nuovo tenant."
+        )
+        next_path = quote_plus(f"/{slug_tenant_finale}/admin/dashboard")
+        url_redirect = f"/auth/login?success={messaggio_successo}&next={next_path}"
 
     if request.headers.get("HX-Request") == "true":
         risposta = Response(status_code=204)
@@ -660,7 +943,11 @@ async def confirm_account(
 
 @router.get("/password-recovery", response_class=HTMLResponse)
 async def forgot_password_page(request: Request):
-    return templates.TemplateResponse("auth/forgot_password.html", {"request": request})
+    return templates.TemplateResponse(
+        request,
+        "auth/forgot_password.html",
+        {},
+    )
 
 
 # -----------------------------------------------------------------------------
@@ -712,9 +999,9 @@ async def forgot_password_submit(
     
     # Risposta sempre uguale (security)
     return templates.TemplateResponse(
+        request,
         "auth/forgot_password.html",
         {
-            "request": request,
             "ok": "Se l'email esiste, riceverai un link di reset entro pochi minuti.",
         },
     )
@@ -744,17 +1031,18 @@ async def reset_password_page(
     
     if not token_obj:
         return templates.TemplateResponse(
+            request,
             "auth/reset_password.html",
             {
-                "request": request,
                 "error": "Token non valido o scaduto. Richiedi un nuovo reset.",
             },
             status_code=200,
         )
     
     return templates.TemplateResponse(
+        request,
         "auth/reset_password.html",
-        {"request": request, "token": token},
+        {"token": token},
     )
 
 
@@ -775,9 +1063,9 @@ async def reset_password_submit(
     # Verifica password match
     if password != password2:
         return templates.TemplateResponse(
+            request,
             "auth/reset_password.html",
             {
-                "request": request,
                 "token": token,
                 "error": "Le password non coincidono",
             },
@@ -787,9 +1075,9 @@ async def reset_password_submit(
     # TODO: Valida complessità password
     if len(password) < 8:
         return templates.TemplateResponse(
+            request,
             "auth/reset_password.html",
             {
-                "request": request,
                 "token": token,
                 "error": "Password troppo corta (minimo 8 caratteri)",
             },
@@ -810,9 +1098,9 @@ async def reset_password_submit(
     
     if not token_obj:
         return templates.TemplateResponse(
+            request,
             "auth/reset_password.html",
             {
-                "request": request,
                 "error": "Token non valido o scaduto",
             },
             status_code=200,
@@ -845,9 +1133,9 @@ async def confirm_password_page(
 ):
     """Pagina per conferma password"""
     return templates.TemplateResponse(
+        request,
         "auth/confirm_password.html",
         {
-            "request": request,
             "next": next or "/",
             "error": error,
         },
@@ -868,9 +1156,9 @@ async def confirm_password_submit(
     
     if not password_valida:
         return templates.TemplateResponse(
+            request,
             "auth/confirm_password.html",
             {
-                "request": request,
                 "next": next,
                 "error": "Password non corretta",
             },
@@ -897,8 +1185,9 @@ async def confirm_password_submit(
 @router.get("/2fa", response_class=HTMLResponse)
 async def two_factor_page(request: Request, next: str = "/"):
     return templates.TemplateResponse(
+        request,
         "auth/two_factor.html",
-        {"request": request, "next": next},
+        {"next": next},
     )
 
 
@@ -913,8 +1202,9 @@ async def two_factor_submit(
 
     if not ok:
         return templates.TemplateResponse(
+            request,
             "auth/two_factor.html",
-            {"request": request, "next": next, "error": "Codice non valido"},
+            {"next": next, "error": "Codice non valido"},
             status_code=200,
         )
 

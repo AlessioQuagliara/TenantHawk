@@ -14,7 +14,9 @@ from app.core.database import get_db
 
 from app.core.auth import prendi_utente_corrente
 
-from app.models import Utente, UtenteRuoloTenant, UtenteRuolo
+from app.core.tenancy import prendi_tenant_corrente
+
+from app.models import Tenant, Utente, UtenteRuolo, UtenteRuoloTenant
 
 
 def _valore_ruolo(ruolo: UtenteRuolo | str) -> str:
@@ -31,13 +33,14 @@ def _valore_ruolo(ruolo: UtenteRuolo | str) -> str:
 
 async def _ottieni_ruolo_utente_tenant(
     utente: Utente,
+    tenant_id: int,
     db: AsyncSession,
 ) -> str | None:
     risultato = await db.execute(
         select(UtenteRuoloTenant.ruolo).where(
             UtenteRuoloTenant.utente_id == utente.id,
-            UtenteRuoloTenant.tenant_id == utente.tenant_id,
-        )
+            UtenteRuoloTenant.tenant_id == tenant_id,
+        ).limit(1)
     )
     ruolo = risultato.scalar_one_or_none()
     if ruolo is None:
@@ -47,9 +50,10 @@ async def _ottieni_ruolo_utente_tenant(
 
 async def prendi_ruolo_corrente(
     utente: Utente = Depends(prendi_utente_corrente),
+    tenant_obj: Tenant = Depends(prendi_tenant_corrente),
     db: AsyncSession = Depends(get_db),
 ) -> str:
-    ruolo_corrente = await _ottieni_ruolo_utente_tenant(utente, db)
+    ruolo_corrente = await _ottieni_ruolo_utente_tenant(utente, tenant_obj.id, db)
     if ruolo_corrente is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -61,6 +65,7 @@ async def prendi_ruolo_corrente(
 async def _richiede_ruolo_impl(
     ruoli_permessi: list[UtenteRuolo],
     utente: Utente = Depends(prendi_utente_corrente),
+    tenant_obj: Tenant = Depends(prendi_tenant_corrente),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -74,7 +79,7 @@ async def _richiede_ruolo_impl(
         ...
     """
     
-    ruolo_utente = await _ottieni_ruolo_utente_tenant(utente, db)
+    ruolo_utente = await _ottieni_ruolo_utente_tenant(utente, tenant_obj.id, db)
 
     if ruolo_utente is None:
         raise HTTPException(
@@ -96,9 +101,10 @@ def richiede_ruolo(ruoli_permessi: list[UtenteRuolo]):
     """Factory function that returns a dependency for checking required roles."""
     async def dependency(
         utente: Utente = Depends(prendi_utente_corrente),
+        tenant_obj: Tenant = Depends(prendi_tenant_corrente),
         db: AsyncSession = Depends(get_db),
     ):
-        return await _richiede_ruolo_impl(ruoli_permessi, utente, db)
+        return await _richiede_ruolo_impl(ruoli_permessi, utente, tenant_obj, db)
     return dependency
 
 

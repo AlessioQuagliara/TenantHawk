@@ -1,22 +1,230 @@
+<!-- ======================================================================================= -->
+<!-- backend/app/templates/admin/users/index.html -->
+<!-- ======================================================================================= -->
+
 {% extends "admin/base.html" %}
 
+{% from "components/badges.html" import info, success, warning, danger %}
 {% from "components/buttons.html" import primary, secondary %}
+{% from "components/forms.html" import input %}
 
 {% block admin_title %}Utenti{% endblock %}
+{% block admin_heading %}Gestione utenti{% endblock %}
 
-{% block page_actions %}
-  {{ primary("Nuovo utente", attrs={"hx-get": "/admin/users/new", "hx-target": "#modal-container", "hx-swap": "innerHTML"}) }}
-{% endblock %}
 
 {% block admin_content %}
 <div class="space-y-6">
-  <!-- Tabella con filtri integrati -->
-  {% include "admin/partials/table.html" %}
-</div>
+  <div class="flex flex-wrap items-center gap-2">
+    {{ info("Tenant: " ~ tenant.slug) }}
+    {{ warning("Accesso riservato a superutente") }}
+  </div>
 
-<!-- Modal container -->
-<div id="modal-container"></div>
-{% endblock %}
-  });
-</script>
+  {% if ok %}
+    <div class="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800 dark:border-emerald-700/40 dark:bg-emerald-900/20 dark:text-emerald-200">
+      <i class="ri-checkbox-circle-line mt-0.5"></i>
+      <p class="text-sm font-medium">{{ ok }}</p>
+    </div>
+  {% endif %}
+
+  {% if errore %}
+    <div class="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-800 dark:border-red-700/40 dark:bg-red-900/20 dark:text-red-200">
+      <i class="ri-close-circle-line mt-0.5"></i>
+      <p class="text-sm font-medium">{{ errore }}</p>
+    </div>
+  {% endif %}
+
+
+  {% if puo_invitare %}
+    <section id="invite-user" class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+      <div class="mb-4 flex items-center gap-2">
+        <i class="ri-mail-send-line text-primary-600 dark:text-primary-300"></i>
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Invita nuovo utente</h2>
+      </div>
+
+      <form method="post" action="/{{ tenant.slug }}/admin/users/invite" class="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <div class="md:col-span-1">
+          <label for="nome" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Nome</label>
+          {{ input(
+            name="nome",
+            placeholder="Nome e cognome",
+            attrs={"id": "nome", "autocomplete": "name"}
+          ) }}
+        </div>
+        <div class="md:col-span-1">
+          <label for="email" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Email</label>
+          {{ input(
+            type="email",
+            name="email",
+            placeholder="nome@azienda.it",
+            required=true,
+            attrs={"id": "email", "autocomplete": "email"}
+          ) }}
+        </div>
+        <div class="md:col-span-1">
+          <label for="ruolo" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Ruolo</label>
+          <select
+            id="ruolo"
+            name="ruolo"
+            class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+            required
+          >
+            {% for ruolo in ruoli_disponibili %}
+              <option value="{{ ruolo }}">
+                {% if ruolo == "collaboratore" %}Collaboratore{% elif ruolo == "moderatore" %}Moderatore{% else %}Utente{% endif %}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="md:col-span-1 flex items-end justify-end">
+          {{ primary("Invia invito", type="submit") }}
+        </div>
+      </form>
+
+      <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
+        L'utente riceverà una email con token di conferma e password temporanea.
+      </p>
+    </section>
+  {% else %}
+    <div class="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800 dark:border-amber-700/40 dark:bg-amber-900/20 dark:text-amber-200">
+      <i class="ri-information-line mt-0.5"></i>
+      <div>
+      <p class="text-sm font-medium">Hai raggiunto il limite di {{ max_utenti }} utenti per il piano <strong>{{ tenant.sottoscrizione.piano.value }}</strong>.</p>
+      <p class="mt-1 text-xs opacity-90">Aggiorna il piano per invitare altri utenti.</p>
+      </div>
+    </div>
+  {% endif %}
+
+  <section class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+    <div class="mb-4 flex items-center gap-2">
+      <i class="ri-group-line text-primary-600 dark:text-primary-300"></i>
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Utenti del tenant</h2>
+    </div>
+
+    <form method="get" action="/{{ tenant.slug }}/admin/users" class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-4">
+      <div class="md:col-span-2">
+        <label for="search" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Cerca</label>
+        {{ input(
+          name="search",
+          value=search_value or "",
+          placeholder="Nome o email",
+          attrs={"id": "search"}
+        ) }}
+      </div>
+      <div>
+        <label for="filter_role" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Ruolo</label>
+        <select
+          id="filter_role"
+          name="filter_role"
+          class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+        >
+          <option value="">Tutti i ruoli</option>
+          <option value="superutente" {% if filter_role == "superutente" %}selected{% endif %}>Superutente</option>
+          <option value="collaboratore" {% if filter_role == "collaboratore" %}selected{% endif %}>Collaboratore</option>
+          <option value="moderatore" {% if filter_role == "moderatore" %}selected{% endif %}>Moderatore</option>
+          <option value="utente" {% if filter_role == "utente" %}selected{% endif %}>Utente</option>
+        </select>
+      </div>
+      <div>
+        <label for="filter_status" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Stato</label>
+        <select
+          id="filter_status"
+          name="filter_status"
+          class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+        >
+          <option value="">Tutti</option>
+          <option value="attivo" {% if filter_status == "attivo" %}selected{% endif %}>Attivo</option>
+          <option value="inattivo" {% if filter_status == "inattivo" %}selected{% endif %}>Inattivo/Bannato</option>
+        </select>
+      </div>
+      <div class="md:col-span-4 flex items-center justify-end gap-2">
+        {{ secondary("Reset", attrs={"onclick": "window.location='/" ~ tenant.slug ~ "/admin/users'"}) }}
+        {{ primary("Applica filtri", type="submit") }}
+      </div>
+    </form>
+
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+        <thead class="bg-gray-50 dark:bg-gray-800">
+          <tr>
+            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Utente</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Ruolo</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Stato</th>
+            <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Azioni</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
+          {% if users %}
+            {% for row in users %}
+              <tr>
+                <td class="px-4 py-3 align-top">
+                  <div class="font-medium text-gray-900 dark:text-white">{{ row.nome or "Utente senza nome" }}</div>
+                  <div class="text-sm text-gray-500 dark:text-gray-400">{{ row.email }}</div>
+                </td>
+                <td class="px-4 py-3 align-top">
+                  {% if row.is_superutente %}
+                    {{ success("Superutente") }}
+                  {% else %}
+                    <form method="post" action="/{{ tenant.slug }}/admin/users/{{ row.id }}/role" class="flex items-center gap-2">
+                      <select
+                        name="ruolo"
+                        class="rounded-md border border-gray-300 px-2 py-1.5 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                      >
+                        {% for ruolo in ruoli_disponibili %}
+                          <option value="{{ ruolo }}" {% if row.ruolo == ruolo %}selected{% endif %}>
+                            {% if ruolo == "collaboratore" %}Collaboratore{% elif ruolo == "moderatore" %}Moderatore{% else %}Utente{% endif %}
+                          </option>
+                        {% endfor %}
+                      </select>
+                      <button
+                        type="submit"
+                        class="inline-flex items-center rounded-md border border-gray-300 px-2 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+                      >
+                        <i class="ri-save-line mr-1"></i> Salva
+                      </button>
+                    </form>
+                  {% endif %}
+                </td>
+                <td class="px-4 py-3 align-top">
+                  {% if row.attivo %}
+                    {{ success("Attivo") }}
+                  {% else %}
+                    {{ danger("Inattivo / Bannato") }}
+                  {% endif %}
+                </td>
+                <td class="px-4 py-3 text-right align-top">
+                  {% if row.is_self %}
+                    {{ info("Tu") }}
+                  {% elif row.is_superutente %}
+                    <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-200">
+                      Protetto
+                    </span>
+                  {% else %}
+                    <form method="post" action="/{{ tenant.slug }}/admin/users/{{ row.id }}/toggle-ban">
+                      <button
+                        type="submit"
+                        class="inline-flex items-center rounded-md border px-3 py-1.5 text-xs font-semibold {% if row.attivo %}border-red-300 text-red-700 hover:bg-red-50 dark:border-red-600 dark:text-red-300 dark:hover:bg-red-900/30{% else %}border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-600 dark:text-emerald-300 dark:hover:bg-emerald-900/30{% endif %}"
+                      >
+                        {% if row.attivo %}
+                          <i class="ri-forbid-2-line mr-1"></i> Banna
+                        {% else %}
+                          <i class="ri-user-follow-line mr-1"></i> Sblocca
+                        {% endif %}
+                      </button>
+                    </form>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="4" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                Nessun utente trovato con i filtri correnti.
+              </td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
 {% endblock %}

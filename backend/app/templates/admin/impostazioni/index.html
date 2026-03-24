@@ -1,0 +1,192 @@
+<!-- ======================================================================================= -->
+<!-- backend/app/templates/admin/impostazioni/index.html -->
+<!-- ======================================================================================= -->
+
+{% extends "admin/base.html" %}
+
+{% from "components/badges.html" import info, success, warning %}
+{% from "components/buttons.html" import primary, secondary %}
+{% from "components/forms.html" import input %}
+
+{% block admin_title %}Impostazioni{% endblock %}
+{% block admin_heading %}Impostazioni{% endblock %}
+
+{% block admin_content %}
+{% set ruolo_label = "Superutente" if ruolo_corrente == "superutente" else "Collaboratore" if ruolo_corrente == "collaboratore" else "Moderatore" if ruolo_corrente == "moderatore" else "Utente" %}
+
+<div class="space-y-6">
+  <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Impostazioni account</h1>
+      <p class="text-sm text-gray-600 dark:text-gray-400">
+        Aggiorna i tuoi dati personali e la sicurezza del tuo accesso.
+      </p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      {{ info("Tenant: " ~ tenant.slug) }}
+      {% if ruolo_corrente == "superutente" %}
+        {{ success(ruolo_label) }}
+      {% elif ruolo_corrente == "collaboratore" %}
+        {{ warning(ruolo_label) }}
+      {% elif ruolo_corrente == "moderatore" %}
+        {{ info(ruolo_label) }}
+      {% else %}
+        {{ info(ruolo_label) }}
+      {% endif %}
+    </div>
+  </div>
+
+  {% if ok %}
+    <div class="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800 dark:border-emerald-700/40 dark:bg-emerald-900/20 dark:text-emerald-200">
+      <i class="ri-checkbox-circle-line mt-0.5"></i>
+      <p class="text-sm font-medium">{{ ok }}</p>
+    </div>
+  {% endif %}
+
+  {% if errore %}
+    <div class="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-800 dark:border-red-700/40 dark:bg-red-900/20 dark:text-red-200">
+      <i class="ri-close-circle-line mt-0.5"></i>
+      <p class="text-sm font-medium">{{ errore }}</p>
+    </div>
+  {% endif %}
+
+  <div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
+    <section class="xl:col-span-1 rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+      <div class="flex items-center gap-3">
+        <div class="flex h-11 w-11 items-center justify-center rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-200">
+          <i class="ri-user-3-line text-lg"></i>
+        </div>
+        <div>
+          <div class="text-sm text-gray-500 dark:text-gray-400">Account attivo</div>
+          <div class="text-base font-semibold text-gray-900 dark:text-white">
+            {{ utente.nome or "Utente" }}
+          </div>
+        </div>
+      </div>
+
+      <dl class="mt-5 space-y-3 text-sm">
+        <div class="flex items-center justify-between gap-3">
+          <dt class="text-gray-500 dark:text-gray-400">Email</dt>
+          <dd class="truncate text-right text-gray-900 dark:text-gray-100">{{ utente.email }}</dd>
+        </div>
+        <div class="flex items-center justify-between gap-3">
+          <dt class="text-gray-500 dark:text-gray-400">Tenant</dt>
+          <dd class="text-gray-900 dark:text-gray-100">{{ tenant.slug }}</dd>
+        </div>
+        <div class="flex items-center justify-between gap-3">
+          <dt class="text-gray-500 dark:text-gray-400">Ruolo</dt>
+          <dd class="text-gray-900 dark:text-gray-100">{{ ruolo_label }}</dd>
+        </div>
+      </dl>
+
+      <div class="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/60">
+        <div class="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200">
+          <i class="ri-palette-line"></i>
+          Tema interfaccia
+        </div>
+        <div class="flex justify-end">
+          {% include "components/theme_selector.html" %}
+        </div>
+      </div>
+    </section>
+
+    <div class="xl:col-span-2 space-y-6">
+      <section class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        <div class="mb-4 flex items-center gap-2">
+          <i class="ri-profile-line text-primary-600 dark:text-primary-300"></i>
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Profilo</h2>
+        </div>
+
+        <form method="post" action="/{{ tenant.slug }}/admin/impostazioni/profilo" class="space-y-4">
+          <div>
+            <label for="nome" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+              Nome
+            </label>
+            {{ input(
+              name="nome",
+              value=utente.nome or "",
+              placeholder="Il tuo nome",
+              required=true,
+              attrs={"id": "nome", "autocomplete": "name"}
+            ) }}
+          </div>
+
+          <div>
+            <label for="email" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+              Email
+            </label>
+            {{ input(
+              type="email",
+              name="email",
+              value=utente.email or "",
+              placeholder="nome@azienda.it",
+              required=true,
+              attrs={"id": "email", "autocomplete": "email"}
+            ) }}
+          </div>
+
+          <div class="flex flex-wrap items-center justify-end gap-2 pt-2">
+            {{ secondary("Ripristina", type="reset") }}
+            {{ primary("Salva profilo", type="submit") }}
+          </div>
+        </form>
+      </section>
+
+      <section class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        <div class="mb-2 flex items-center gap-2">
+          <i class="ri-lock-password-line text-primary-600 dark:text-primary-300"></i>
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Sicurezza</h2>
+        </div>
+        <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">
+          Per cambiare password inserisci prima quella attuale.
+        </p>
+
+        <form method="post" action="/{{ tenant.slug }}/admin/impostazioni/password" class="space-y-4">
+          <div>
+            <label for="password_attuale" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+              Password attuale
+            </label>
+            {{ input(
+              type="password",
+              name="password_attuale",
+              placeholder="Inserisci password attuale",
+              required=true,
+              attrs={"id": "password_attuale", "autocomplete": "current-password"}
+            ) }}
+          </div>
+
+          <div>
+            <label for="password_nuova" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+              Nuova password
+            </label>
+            {{ input(
+              type="password",
+              name="password_nuova",
+              placeholder="Almeno 8 caratteri",
+              required=true,
+              attrs={"id": "password_nuova", "autocomplete": "new-password"}
+            ) }}
+          </div>
+
+          <div>
+            <label for="password_nuova_conferma" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+              Conferma nuova password
+            </label>
+            {{ input(
+              type="password",
+              name="password_nuova_conferma",
+              placeholder="Ripeti la nuova password",
+              required=true,
+              attrs={"id": "password_nuova_conferma", "autocomplete": "new-password"}
+            ) }}
+          </div>
+
+          <div class="flex justify-end pt-2">
+            {{ primary("Aggiorna password", type="submit") }}
+          </div>
+        </form>
+      </section>
+    </div>
+  </div>
+</div>
+{% endblock %}

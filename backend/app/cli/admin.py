@@ -81,8 +81,9 @@ def create_admin_module(
         @router.get("/{slug}", response_class=HTMLResponse)
         async def {slug}_page(request: Request):
             return templates.TemplateResponse(
+                request,
                 "admin/{slug}/index.html",
-                {{"request": request}},
+                {{}},
             )
         """
     ).lstrip()

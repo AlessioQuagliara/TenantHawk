@@ -12,7 +12,7 @@ from app.core import templates
 
 from app.core.permessi import prendi_ruolo_corrente
 
-from app.core.tenancy import prendi_tenant_corrente
+from app.core.tenancy import prendi_tenant_con_accesso
 
 from app.core.auth import prendi_utente_corrente
 
@@ -27,14 +27,14 @@ router = APIRouter()
 @router.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_page(
     request: Request,
-    tenant_obj: Tenant = Depends(prendi_tenant_corrente),
+    tenant_obj: Tenant = Depends(prendi_tenant_con_accesso),
     utente_corrente: Utente = Depends(prendi_utente_corrente),
     ruolo_corrente: str = Depends(prendi_ruolo_corrente),
 ):
     return templates.TemplateResponse(
+        request,
         "admin/dashboard/index.html",
         {
-            "request": request,
             "tenant": tenant_obj,
             "utente": utente_corrente,
             "ruolo_corrente": ruolo_corrente,

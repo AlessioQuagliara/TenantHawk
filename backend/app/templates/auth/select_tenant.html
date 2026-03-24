@@ -1,0 +1,62 @@
+<!-- ======================================================================================= -->
+<!-- backend/app/templates/auth/select_tenant.html -->
+<!-- ======================================================================================= -->
+
+{% extends "auth/base.html" %}
+
+{% from "components/buttons.html" import primary %}
+
+{% block auth_title %}Seleziona tenant{% endblock %}
+{% block auth_heading %}Scegli il tenant{% endblock %}
+
+{% block auth_content %}
+<form
+    hx-post="/auth/select-tenant"
+    hx-target="#auth-card-content"
+    hx-select="#auth-card-content"
+    hx-swap="outerHTML"
+    method="post"
+    class="space-y-6"
+>
+    {% if error %}
+        <div class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20" role="alert">
+            <p class="text-sm font-medium text-red-700 dark:text-red-300">
+                <i class="ri-error-warning-fill"></i> &nbsp;&nbsp; {{ error }}
+            </p>
+        </div>
+    {% endif %}
+
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="sessione_temp" value="{{ sessione_temp }}">
+    <input type="hidden" name="token_selezione" value="{{ token_selezione }}">
+
+    <div>
+        <label for="tenant_slug" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Tenant di destinazione
+        </label>
+        <select
+            id="tenant_slug"
+            name="tenant_slug"
+            required
+            class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm outline-none ring-0 transition focus:border-primary-500 focus:ring-2 focus:ring-primary-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:focus:border-primary-400 dark:focus:ring-primary-700/40"
+        >
+            {% for tenant in tenant_options %}
+                <option value="{{ tenant.slug }}" {% if tenant.slug == tenant_selected_slug %}selected{% endif %}>
+                    {{ tenant.nome }} ({{ tenant.slug }})
+                </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div>
+        {{ primary("Continua", type="submit", attrs={"class": "w-full justify-center"}) }}
+    </div>
+
+    <div class="text-center text-sm text-gray-600 dark:text-gray-400">
+        Accesso con <span class="font-medium">{{ email }}</span>.
+        <a href="/auth/login" class="text-primary-600 hover:text-primary-500 dark:text-primary-400">
+            Cambia account
+        </a>
+    </div>
+</form>
+{% endblock %}

@@ -103,7 +103,7 @@ def dati_errore(codice_stato: int, area_admin: bool) -> dict[str, str]:
     }
 
 
-def dettaglio_http_come_stringa(eccezione: HTTPException) -> str:
+def dettaglio_http_come_stringa(eccezione: HTTPException | StarletteHTTPException) -> str:
     if isinstance(eccezione.detail, str):
         return eccezione.detail
     if eccezione.detail is None:
@@ -128,7 +128,7 @@ def messaggio_template_http(
     return dati_errore(codice_stato, area_admin)["messaggio"]
 
 
-def contesto_base_template(richiesta: Request, area_admin: bool) -> dict[str, str | bool]:
+def contesto_base_template(richiesta: Request, area_admin: bool) -> dict[str, str | bool | dict[str, str] | None]:
     """
     Crea variabili condivise da tutti i template errore.
     """
@@ -193,8 +193,7 @@ def registra_handler_globali(app: FastAPI) -> None:
 
         if richiesta_html(richiesta):
             dati = dati_errore(codice_stato, area_admin)
-            contesto = {
-                "request": richiesta,
+            contesto: dict[str, str | int | bool | dict[str, str] | None] = {
                 "codice_errore": codice_stato,
                 "titolo_errore": dati["titolo"],
                 "messaggio_errore": messaggio_template_http(
@@ -206,6 +205,7 @@ def registra_handler_globali(app: FastAPI) -> None:
             contesto.update(contesto_base_template(richiesta, area_admin))
             try:
                 return templates.TemplateResponse(
+                    richiesta,
                     template_errore(codice_stato, area_admin),
                     contesto,
                     status_code=codice_stato,
@@ -244,8 +244,7 @@ def registra_handler_globali(app: FastAPI) -> None:
 
         if richiesta_html(richiesta):
             dati = dati_errore(500, area_admin)
-            contesto = {
-                "request": richiesta,
+            contesto: dict[str, str | int | bool | dict[str, str] | None] = {
                 "codice_errore": 500,
                 "titolo_errore": dati["titolo"],
                 "messaggio_errore": dati["messaggio"],
@@ -253,6 +252,7 @@ def registra_handler_globali(app: FastAPI) -> None:
             contesto.update(contesto_base_template(richiesta, area_admin))
             try:
                 return templates.TemplateResponse(
+                    richiesta,
                     template_errore(500, area_admin),
                     contesto,
                     status_code=500,

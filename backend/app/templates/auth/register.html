@@ -80,6 +80,9 @@
             Conferma password
         </label>
         {{ input(type="password", name="conferma_password", placeholder="••••••••", required=true, attrs={"id": "conferma_password", "autocomplete": "new-password"}) }}
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Hai già un account? Usa la stessa email e password per creare un nuovo tenant.
+        </p>
     </div>
 
     {# Bottone di registrazione #}

@@ -4,6 +4,10 @@
 
 from __future__ import annotations
 
+import re
+
+from pydantic import field_validator
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -40,5 +44,43 @@ class Settings(BaseSettings):
     # Diamo un taglio! (Mettiamo un limite a redis)
     RATE_LIMIT_ENABLED: bool = True
     RATE_LIMIT_LOGIN: str = "5/minute"  # Max 5 login per IP al minuto
+
+    # Importiamo le chiavi Stripe
+    stripe_secret_key: str = ""
+    stripe_publishable_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_price_base: str = ""
+    stripe_price_pro: str = ""
+    stripe_price_company: str = ""
+
+    @field_validator("stripe_webhook_secret", mode="before")
+    @classmethod
+    def _normalizza_stripe_webhook_secret(cls, value: object) -> str:
+        if value is None:
+            return ""
+
+        secret = str(value).strip().strip('"').strip("'")
+        if not secret:
+            return ""
+
+        # Permette commenti inline nel .env (es: "... # SOLO TEST")
+        if "#" in secret:
+            secret = secret.split("#", 1)[0].strip()
+
+        idx = secret.find("whsec_")
+        if idx >= 0:
+            secret = secret[idx:]
+
+        # Se il secret e' stato accidentalmente concatenato due volte,
+        # mantiene solo il primo.
+        marker = "whsec_"
+        first = secret.find(marker)
+        second = secret.find(marker, first + len(marker)) if first >= 0 else -1
+        if second > 0:
+            secret = secret[:second]
+
+        # Ripulisce caratteri finali non validi.
+        secret = re.sub(r"[^A-Za-z0-9_]+$", "", secret).strip()
+        return secret
 
 settings = Settings()

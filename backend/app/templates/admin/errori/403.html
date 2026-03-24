@@ -2,7 +2,7 @@
 <!-- backend/app/templates/admin/errori/403 -->
 <!-- ======================================================================================= -->
 
-{% extends "base.html" %}
+{% extends "admin/base.html" %}
 
 {% block title %}403 - Accesso vietato (Admin){% endblock %}
 
@@ -27,13 +27,15 @@
         </p>
 
         <div class="mt-6">
-            <a
-                href="{{ url_dashboard_admin }}"
-                class="inline-flex items-center rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-            >
-                <i class="ri-arrow-left-line mr-2"></i>
-                Torna alla dashboard
-            </a>
+            <form action="/auth/logout" method="post" class="block">
+                <button
+                    type="submit"
+                    class="inline-flex items-center rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                >
+                    <i class="ri-logout-box-r-line mr-2"></i>
+                    Logout
+                </button>
+            </form>
         </div>
     </div>
 </section>

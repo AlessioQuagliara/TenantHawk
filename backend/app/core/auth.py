@@ -14,7 +14,7 @@ from app.core.database import get_db
 
 from app.core.sessione import gestore_sessioni
 
-from app.models import Utente, Tenant
+from app.models import Utente
 
 # Nome cookie sessione
 SESSION_COOKIE_NAME = "id_sessione_utente"
@@ -42,17 +42,13 @@ async def prendi_utente_corrente(
         )
     
     id_utente = dati_sessione.get("id_utente")
-    id_tenant = dati_sessione.get("id_tenant")
-    
-    # ---- Carica utente da DB con join tenant (1 query) ----------
+
+    # ---- Carica utente da DB (l'autorizzazione tenant viene verificata altrove) ----------
     result = await db.execute(
         select(Utente)
-        .join(Tenant, Utente.tenant_id == Tenant.id)
         .where(
             Utente.id == id_utente,
-            Utente.tenant_id == id_tenant,
             Utente.attivo.is_(True),
-            Tenant.attivo.is_(True),
         )
     )
     

@@ -1,0 +1,165 @@
+<!-- ======================================================================================= -->
+<!-- backend/app/templates/admin/sottoscrizioni/index.html -->
+<!-- ======================================================================================= -->
+
+{% extends "admin/base.html" %}
+
+{% from "components/badges.html" import info, success, warning, danger %}
+{% from "components/buttons.html" import primary, secondary %}
+
+{% block admin_title %}Sottoscrizioni{% endblock %}
+{% block admin_heading %}Sottoscrizioni{% endblock %}
+
+{% block admin_content %}
+<div class="space-y-6">
+  <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Sottoscrizione tenant</h1>
+      <p class="text-sm text-gray-600 dark:text-gray-400">
+        Panoramica del piano attivo e stato del periodo corrente.
+      </p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      {{ info("Tenant: " ~ tenant.slug) }}
+      {% if stato_piano == "attivo" %}
+        {{ success("Stato: Attivo") }}
+      {% elif stato_piano == "prova" %}
+        {{ warning("Stato: Prova") }}
+      {% elif stato_piano %}
+        {{ danger("Stato: " ~ stato_piano|capitalize) }}
+      {% else %}
+        {{ warning("Nessuna sottoscrizione") }}
+      {% endif %}
+      {% if cancel_at_period_end %}
+        {{ warning("Annullamento a fine periodo") }}
+      {% endif %}
+    </div>
+  </div>
+
+  {% if ok %}
+    <div class="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800 dark:border-emerald-700/40 dark:bg-emerald-900/20 dark:text-emerald-200">
+      <i class="ri-checkbox-circle-line mt-0.5"></i>
+      <p class="text-sm font-medium">{{ ok }}</p>
+    </div>
+  {% endif %}
+
+  {% if errore %}
+    <div class="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-800 dark:border-red-700/40 dark:bg-red-900/20 dark:text-red-200">
+      <i class="ri-close-circle-line mt-0.5"></i>
+      <p class="text-sm font-medium">{{ errore }}</p>
+    </div>
+  {% endif %}
+
+  {% if not sottoscrizione %}
+    <section class="rounded-xl border border-amber-200 bg-amber-50 p-5 text-amber-800 shadow-sm dark:border-amber-700/40 dark:bg-amber-900/20 dark:text-amber-200">
+      <div class="mb-2 flex items-center gap-2 text-base font-semibold">
+        <i class="ri-alert-line"></i>
+        Nessuna sottoscrizione associata
+      </div>
+      <p class="text-sm">
+        Questo tenant non ha ancora un piano valido. Completa l'attivazione per ripristinare l'accesso alle funzioni protette.
+      </p>
+      <a href="/{{ tenant.slug }}/admin/sottoscrizioni/gestisci"
+         class="mt-4 inline-flex items-center rounded-md bg-amber-600 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white hover:bg-amber-700">
+        Gestisci piano &nbsp; <i class="ri-arrow-right-line"></i>
+      </a>
+    </section>
+  {% else %}
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <section class="lg:col-span-2 rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        <div class="mb-4 flex items-center gap-2">
+          <i class="ri-vip-crown-2-line text-primary-600 dark:text-primary-300"></i>
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Dettaglio piano</h2>
+        </div>
+
+        <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/60">
+            <dt class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Piano</dt>
+            <dd class="mt-1 text-base font-semibold text-gray-900 dark:text-white">{{ piano|upper }}</dd>
+          </div>
+          <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/60">
+            <dt class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Stato</dt>
+            <dd class="mt-1 text-base font-semibold text-gray-900 dark:text-white">{{ stato_piano|capitalize }}</dd>
+          </div>
+          <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/60">
+            <dt class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Fine periodo corrente</dt>
+            <dd class="mt-1 text-base font-semibold text-gray-900 dark:text-white">
+              {% if fine_periodo %}
+                {{ fine_periodo.strftime("%d/%m/%Y %H:%M") }}
+              {% else %}
+                Non impostata
+              {% endif %}
+            </dd>
+          </div>
+          <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/60">
+            <dt class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Giorni rimanenti</dt>
+            <dd class="mt-1 text-base font-semibold text-gray-900 dark:text-white">
+              {% if giorni_rimanenti is not none %}
+                {{ giorni_rimanenti }}
+              {% else %}
+                N/D
+              {% endif %}
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        <div class="mb-4 flex items-center gap-2">
+          <i class="ri-radar-line text-primary-600 dark:text-primary-300"></i>
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Stato accesso</h2>
+        </div>
+
+        {% if is_trial and not trial_scaduto %}
+          <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800 dark:border-amber-700/40 dark:bg-amber-900/20 dark:text-amber-200">
+            <p class="text-sm font-medium">Trial attivo</p>
+            <p class="mt-1 text-xs">
+              Rimangono {{ giorni_rimanenti if giorni_rimanenti is not none else "N/D" }} giorni prima della scadenza.
+            </p>
+          </div>
+        {% elif trial_scaduto or is_scaduto %}
+          <div class="rounded-lg border border-red-200 bg-red-50 p-3 text-red-800 dark:border-red-700/40 dark:bg-red-900/20 dark:text-red-200">
+            <p class="text-sm font-medium">Piano scaduto</p>
+            <p class="mt-1 text-xs">Rinnova la sottoscrizione per continuare a usare l'area amministrativa.</p>
+          </div>
+        {% elif is_sospeso %}
+          <div class="rounded-lg border border-orange-200 bg-orange-50 p-3 text-orange-800 dark:border-orange-700/40 dark:bg-orange-900/20 dark:text-orange-200">
+            <p class="text-sm font-medium">Piano sospeso</p>
+            <p class="mt-1 text-xs">Controlla il metodo di pagamento o i dettagli contrattuali.</p>
+          </div>
+        {% elif is_cancellato %}
+          <div class="rounded-lg border border-red-200 bg-red-50 p-3 text-red-800 dark:border-red-700/40 dark:bg-red-900/20 dark:text-red-200">
+            <p class="text-sm font-medium">Piano cancellato</p>
+            <p class="mt-1 text-xs">Riattiva un piano per ripristinare l'accesso completo.</p>
+          </div>
+        {% elif is_attivo %}
+          <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-emerald-800 dark:border-emerald-700/40 dark:bg-emerald-900/20 dark:text-emerald-200">
+            <p class="text-sm font-medium">Piano attivo</p>
+            <p class="mt-1 text-xs">Il tenant è operativo e con accesso regolare.</p>
+          </div>
+        {% endif %}
+
+        {% if trial_in_scadenza %}
+          <p class="mt-3 rounded-md bg-amber-100 px-3 py-2 text-xs text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+            Il trial è in scadenza: valuta il passaggio a un piano superiore.
+          </p>
+        {% endif %}
+
+        {% if cancel_at_period_end %}
+          <p class="mt-3 rounded-md bg-orange-100 px-3 py-2 text-xs text-orange-800 dark:bg-orange-900/30 dark:text-orange-200">
+            Il piano è stato cancellato dal Billing Portal e terminerà alla fine del periodo corrente.
+          </p>
+        {% endif %}
+
+        <div class="mt-5 flex flex-wrap items-center gap-2">
+          {{ secondary("Storico pagamenti", attrs={"disabled": "disabled"}) }}
+          <a href="/{{ tenant.slug }}/admin/sottoscrizioni/gestisci"
+             class="inline-flex items-center px-4 py-2 bg-primary-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-primary-700 focus:bg-primary-700 active:bg-primary-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150">
+            Gestisci piano &nbsp; &nbsp; <i class="ri-radio-button-line"></i>
+          </a>
+        </div>
+      </section>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
