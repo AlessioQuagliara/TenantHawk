@@ -455,6 +455,21 @@ async def applica_policy_disattivazione_tenant(
     fine_periodo_utc = _normalizza_data_utc(sottoscrizione.fine_periodo_corrente)
 
     if stato in {SottoscrizioniStati.SCADUTO, SottoscrizioniStati.CANCELLATO}:
+        try:
+            # Rilegge lo stato dopo la sync live per evitare transizioni stale
+            # (es. webhook pagamento arrivato subito dopo la scadenza trial).
+            await db.refresh(sottoscrizione)
+        except Exception:
+            await db.rollback()
+            return False
+
+        if sottoscrizione.stato_piano in {
+            SottoscrizioniStati.ATTIVO,
+            SottoscrizioniStati.PROVA,
+        }:
+            return False
+
+        fine_periodo_utc = _normalizza_data_utc(sottoscrizione.fine_periodo_corrente)
         if fine_periodo_utc is None or fine_periodo_utc <= adesso_utc:
             sottoscrizione.stato_piano = SottoscrizioniStati.SOSPESO
             sottoscrizione.fine_periodo_corrente = _calcola_scadenza_tregua(adesso_utc)

@@ -64,6 +64,15 @@ def _tenant_id_from_subscription_obj(subscription_obj: dict[str, Any]) -> int | 
     return _to_int(metadata.get("tenant_id"))
 
 
+def _payment_status_da_subscription_obj(subscription_obj: dict[str, Any]) -> str | None:
+    stato_subscription = str(subscription_obj.get("status") or "").strip().lower()
+    if stato_subscription in {"active", "trialing"}:
+        return "paid"
+    if invoice_pagata_da_subscription_obj(subscription_obj):
+        return "paid"
+    return None
+
+
 async def _sync_from_subscription(
     db: AsyncSession,
     *,
@@ -116,14 +125,20 @@ async def _sync_from_subscription_id(
             "latest_invoice.payment_intent",
         ],
     )
+    payment_status_effettivo = payment_status or _payment_status_da_subscription_obj(
+        subscription_obj
+    )
+    invoice_paid_effettivo = invoice_paid or invoice_pagata_da_subscription_obj(
+        subscription_obj
+    )
     tenant_id_effettivo = tenant_id or _tenant_id_from_subscription_obj(subscription_obj)
     return await _sync_from_subscription(
         db,
         subscription_obj=subscription_obj,
         tenant_id=tenant_id_effettivo,
         status_override=status_override,
-        payment_status=payment_status,
-        invoice_paid=invoice_paid,
+        payment_status=payment_status_effettivo,
+        invoice_paid=invoice_paid_effettivo,
     )
 
 
@@ -355,19 +370,22 @@ async def stripe_webhook(
         }:
             metadata = data_obj.get("metadata") or {}
             tenant_id = _to_int(metadata.get("tenant_id"))
-            sottoscrizione_sincronizzata = await _sync_from_subscription(
-                db,
-                subscription_obj=data_obj,
-                tenant_id=tenant_id,
-                payment_status=(
-                    "paid"
-                    if str(data_obj.get("status") or "").lower() == "active"
-                    else None
-                ),
-                invoice_paid=invoice_pagata_da_subscription_obj(data_obj),
-            )
-            snapshot_notifica = _snapshot_sottoscrizione(sottoscrizione_sincronizzata)
-            sincronizzato = True
+            subscription_id = str(data_obj.get("id") or "")
+            if not subscription_id:
+                logger.warning(
+                    "Webhook %s senza subscription id: impossibile sync affidabile da payload",
+                    event_type,
+                )
+            else:
+                sottoscrizione_sincronizzata = await _sync_from_subscription_id(
+                    db,
+                    subscription_id=subscription_id,
+                    tenant_id=tenant_id,
+                    payment_status=_payment_status_da_subscription_obj(data_obj),
+                    invoice_paid=invoice_pagata_da_subscription_obj(data_obj),
+                )
+                snapshot_notifica = _snapshot_sottoscrizione(sottoscrizione_sincronizzata)
+                sincronizzato = True
 
         elif event_type in {"invoice.paid", "invoice.payment_succeeded"}:
             subscription_id = data_obj.get("subscription")

@@ -696,7 +696,6 @@ async def register_submit(
         )
 
     richiede_conferma_email = True
-    invia_email_conferma = True
 
     try:
         risultato_tenant = await db.execute(
@@ -788,7 +787,7 @@ async def register_submit(
         db.add(ruolo_tenant)
         await db.commit()
 
-        if invia_email_conferma:
+        if richiede_conferma_email:
             token_conferma = serializer_conferma_account.dumps(
                 {"id_utente": utente_owner.id, "email": utente_owner.email}
             )
