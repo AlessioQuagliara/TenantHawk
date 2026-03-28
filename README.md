@@ -1,14 +1,33 @@
-<!-- GitHub -->
-[![GitHub Repo](https://img.shields.io/badge/GitHub-000000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/user/repo) ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white) ![n8n](https://img.shields.io/badge/n8n-1EC19A?style=for-the-badge&logo=n8n&logoColor=white) ![Traefik](https://img.shields.io/badge/Traefik-24A1C1?style=for-the-badge&logo=traefikproxy&logoColor=white) ![LiteLLM](https://img.shields.io/badge/LiteLLM-4B32C3?style=for-the-badge&logo=python&logoColor=white) ![Next.js](https://img.shields.io/badge/Next.js-000000?style=flat&logo=next.js&logoColor=white) ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white) ![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
+[![GitHub Repo](https://img.shields.io/badge/GitHub-000000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/user/repo) ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white) ![Stripe](https://img.shields.io/badge/Stripe-635BFF?style=for-the-badge&logo=stripe&logoColor=white) ![n8n](https://img.shields.io/badge/n8n-1EC19A?style=for-the-badge&logo=n8n&logoColor=white) ![Traefik](https://img.shields.io/badge/Traefik-24A1C1?style=for-the-badge&logo=traefikproxy&logoColor=white) ![LiteLLM](https://img.shields.io/badge/LiteLLM-4B32C3?style=for-the-badge&logo=python&logoColor=white) ![Next.js](https://img.shields.io/badge/Next.js-000000?style=flat&logo=next.js&logoColor=white) ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white) ![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 ****
 ![Logo](/img/logo.gif)
 ****
-# SaaS Template
+# SaaS Template v0.1
 Costruisci SaaS multi-tenant production-ready senza impazzire tra frontend e backend separati.
 
 Backend + Admin + Infra già pronti: parti subito, non tra 3 settimane.
 
 **Crea il tuo SaaS con uno stack moderno ed affidabile**.
+
+****
+
+### Indice
+
+- [Avvio Progetto](#avvio-progetto)
+- [Monitoring risorse](#monitoring-risorse)
+- [Backend](#backend)
+- [Admin - Backend](#admin---backend)
+- [Landing - Frontend](#landing---frontend)
+- [Traefik - Reverse Proxy](#traefik---reverse-proxy)
+- [LiteLLM - Gestione LLM](#litellm---gestione-llm)
+- [Stripe - Billing e Webhook](#stripe---billing-e-webhook)
+- [n8n - Creazione Automazioni](#n8n---creazione-automazioni)
+- [CLI - Scaffolding Rapido](#cli---scaffolding-rapido)
+- [Test Performance k6](#test-performance-k6)
+- [Perché questo template](#perché-questo-template)
+- [Quando usarlo](#quando-usarlo)
+- [Licenza MIT](#licenza-mit)
+
 
 ****
 
@@ -40,7 +59,7 @@ docker compose exec backend python -m app.cli seed tenant-admin \
   --admin-email admin@demo.com \
   --admin-password latuapassword
 ```
-è importante notare che questo comando non agisce sul ruolo tenant, quindi questo utente ne sarà sprovvisto.
+Questo comando crea tenant, utente admin e assegna anche il ruolo **SUPERUTENTE** su quel tenant, quindi è perfetto per partire subito senza passare dalla registrazione iniziale.
 
 ### Monitoring risorse
 ![Docker](/img/docker.gif)
@@ -81,9 +100,9 @@ Sul piano sicurezza include autenticazione con cookie **httpOnly**, protezione `
 
 A livello architetturale unisce API + rendering server-side: ``FastAPI`` gestisce rotte, dipendenze e validazioni, mentre ``Jinja2``/``HTMX`` copre la parte interfaccia admin senza trasformare tutto in SPA.
 
-Inoltre c'è una gestione errori centralizzata (template `HTML` o `JSON` in base alla richiesta), healthcheck dedicato e supporto ``CLI`` per ``seed`` iniziale tenant/admin.
+Inoltre c'è una gestione errori centralizzata (template `HTML` o `JSON` in base alla richiesta), healthcheck dedicato e supporto ``CLI`` sia per il ``seed`` iniziale tenant/admin sia per generare nuovi moduli admin in pochi secondi.
 
-In sintesi: backend pensato per partire subito in locale, ma con fondamenta già pronte per scalare in produzione (multi-tenant, sessioni **robuste**, **separazione ruoli** e base billing-oriented).
+In sintesi: backend pensato per partire subito in locale, ma con fondamenta già pronte per scalare in produzione (multi-tenant, sessioni **robuste**, **separazione ruoli**, billing e webhook già impostati).
 
 
 ### Admin - Backend
@@ -134,12 +153,32 @@ Perché l'ho inserito, in modo molto pratico:
 - **Gestione GDPR**: se un cliente enterprise richiede che i dati restino in EU, fai lo switch provider dal file yaml senza riscrivere flussi o automazioni.
 - **Usage tracking per tenant**: LiteLLM traccia token e richieste per chiave virtuale, che è la base per il billing a consumo da implementare nel SaaS.
 
+### Stripe - Billing e Webhook
+![Stripe](/img/stripe.svg)
+
+**Stripe** qui non è un pezzo da aggiungere dopo: è già dentro al backend ed è pensato per reggere tutta la parte billing del SaaS.
+
+In pratica gestisce checkout, sincronizzazione delle sottoscrizioni, rinnovi, pagamenti riusciti o falliti e aggiornamento stato piano direttamente nel cuore dell'applicazione.
+
+Questo significa una cosa molto semplice: se il tuo SaaS deve vendere piani, trial e rinnovi, la base è già pronta e non devi demandare questa logica a tool esterni.
+
+Dentro ci sono già:
+
+- **Webhook Stripe** per ricevere gli eventi reali e allineare il database senza passaggi manuali.
+- **Billing multi-tenant** così ogni tenant mantiene il suo stato sottoscrizione in modo separato e pulito.
+- **Sync stato piano** per tenere coerenti checkout, rinnovi, cancellazioni e pagamenti falliti.
+- **Notifiche email** sugli eventi di abbonamento più importanti, così non resta tutto chiuso dentro Stripe.
+
+In altre parole: n8n può orchestrare automazioni attorno al business, ma la parte economica del SaaS è già prevista nel backend, che è esattamente dove conviene tenerla.
+
 ### n8n - Creazione Automazioni
 ![n8n](/img/n8n.gif)
 
 n8n in questo progetto **è il motore di automazione** e orchestrazione workflow in self-hosted dentro lo stack Docker.
 
-L'idea è usarlo per **costruire agenti AI che interagiscono con le API del backend** FastAPI: onboarding tenant, notifiche, e in futuro anche gestione eventi Stripe per il billing.
+L'idea è usarlo per **costruire agenti AI e workflow che interagiscono con le API del backend** FastAPI: onboarding tenant, notifiche, CRM interno, automazioni operative e flussi personalizzati.
+
+Importante però: **n8n non serve per gestire Stripe**, perché billing, webhook e sincronizzazione sottoscrizioni sono già inclusi nel backend. Qui n8n entra in gioco come livello di automazione sopra il prodotto, non come sostituto della logica core.
 
 Si **integra con LiteLLM tramite nodo OpenAI** nativo, quindi l'agente può chiamare DeepSeek (o altri provider) e **contemporaneamente** fare richieste HTTP verso il backend.
 
@@ -210,6 +249,63 @@ Al primo avvio vai su http://n8n.localhost, crei l'account owner e attivi la lic
 
 Importante: conserva sempre N8N_ENCRYPTION_KEY. Se la perdi o la cambi con dati già presenti nel volume, n8n non riesce più a decifrare le credenziali salvate e devi ripartire da zero.
 
+### CLI - Scaffolding Rapido
+La ``CLI`` è pensata per toglierti attrito quando inizi a far crescere il progetto: invece di creare a mano sempre gli stessi pezzi, puoi generare la base e poi rifinirla tu.
+
+Oltre al seed iniziale tenant/admin, il backend include anche un comando per creare nuovi moduli admin in modo molto rapido.
+
+Esempio pratico:
+
+```bash
+docker compose exec backend python -m app.cli admin create-module statistiche --with-model --with-schema
+```
+
+Cosa puoi fare:
+1) Zero attrito: bootstrap completo in 1 riga
+```
+docker compose exec backend python -m app.cli quickstart \
+  --tenant demo \
+  --nome-tenant "Tenant Demo" \
+  --admin-email admin@demo.com \
+  --admin-password "Password123!"
+```
+2) Seed avanzato (controllo totale)
+```
+docker compose exec backend python -m app.cli seed tenant-admin \
+  --slug azienda-x \
+  --nome-tenant "Azienda X" \
+  --admin-name "Founder Admin" \
+  --admin-email founder@aziendax.it \
+  --admin-password "Password123!" \
+  --with-trial \
+  --trial-days 14
+```
+3) Crea un modulo admin pronto produzione
+```
+docker compose exec backend python -m app.cli admin create-module ordini-vendite \
+  --label "Ordini Vendite" \
+  --superuser-only \
+  --with-model \
+  --with-schema
+```
+4) Vedi subito i moduli admin presenti
+```
+docker compose exec backend python -m app.cli admin list-modules
+```
+
+
+Con questo comando il template ti prepara già:
+
+- route admin dedicata;
+- cartella template con pagina iniziale;
+- aggiornamento automatico del router admin;
+- model SQLAlchemy opzionale;
+- schema Pydantic opzionale.
+
+Questa parte è molto comoda quando devi aggiungere sezioni come ordini, clienti, report, ticket o qualsiasi modulo interno senza ripartire da zero ogni volta.
+
+In pratica non è una CLI "magica", ma una scorciatoia utile: ti evita lavoro ripetitivo e ti lascia subito una struttura pulita da completare.
+
 ### Test Performance k6
 ![k6](/img/k6.gif)
 
@@ -245,6 +341,7 @@ Quindi il sistema regge bene, ma vale la pena continuare a monitorare il punto s
 - Niente fetch hell tra frontend e backend;
 - Multi-tenant già risolto (non banale);
 - auth + sicurezza già production-ready;
+- billing Stripe già integrato nel backend;
 - CLI per creare moduli in pochi secondi;
 - Infrastruttura Docker già pronta (Traefik + Redis + DB).
 
@@ -256,15 +353,15 @@ Quindi il sistema regge bene, ma vale la pena continuare a monitorare il punto s
 ### Quando usarlo
 
 **Perfetto per**:
-	•	SaaS B2B;
-	•	Gestionali;
-	•	Piattaforme multi-tenant;
-	•	MVP già pensati per crescere.
+•	SaaS B2B;
+•	Gestionali;
+•	Piattaforme multi-tenant;
+•	MVP già pensati per crescere.
 
 **Meno adatto per**:
-	•	App ultra client-side;
-	•	Editor visuali molto complessi;
-	•	Prodotti frontend-first tipo Figma/Trello-like.
+•	App ultra client-side;
+•	Editor visuali molto complessi;
+•	Prodotti frontend-first tipo Figma/Trello-like.
 
 ****
 

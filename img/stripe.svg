@@ -1,0 +1,26 @@
+<svg width="1280" height="720" viewBox="0 0 1280 720" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="140" y1="80" x2="1120" y2="640" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0E1428"/>
+      <stop offset="1" stop-color="#1C2C8C"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="296" y1="198" x2="938" y2="522" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#9AA8FF" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#635BFF" stop-opacity="0.2"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="720" rx="32" fill="url(#bg)"/>
+  <circle cx="1010" cy="140" r="150" fill="#635BFF" fill-opacity="0.16"/>
+  <circle cx="260" cy="620" r="210" fill="#7A73FF" fill-opacity="0.12"/>
+  <rect x="126" y="122" width="1028" height="476" rx="30" fill="white" fill-opacity="0.06" stroke="white" stroke-opacity="0.14"/>
+  <rect x="182" y="188" width="312" height="48" rx="24" fill="#635BFF" fill-opacity="0.16"/>
+  <text x="214" y="220" fill="#C9D0FF" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700">Billing, checkout e webhook</text>
+  <text x="184" y="370" fill="white" font-family="Arial, Helvetica, sans-serif" font-size="138" font-weight="700" letter-spacing="-4">Stripe</text>
+  <rect x="184" y="418" width="612" height="18" rx="9" fill="url(#glow)"/>
+  <text x="186" y="502" fill="#DCE2FF" font-family="Arial, Helvetica, sans-serif" font-size="40" font-weight="500">Gia integrato nel backend per piani, rinnovi e sincronizzazione stato.</text>
+  <rect x="844" y="246" width="226" height="168" rx="26" fill="#635BFF"/>
+  <text x="888" y="318" fill="white" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="700">Webhook</text>
+  <text x="888" y="362" fill="#E7E9FF" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="500">eventi sync</text>
+  <rect x="772" y="430" width="298" height="76" rx="22" fill="white" fill-opacity="0.1" stroke="white" stroke-opacity="0.18"/>
+  <text x="814" y="478" fill="white" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700">checkout + email</text>
+</svg>
