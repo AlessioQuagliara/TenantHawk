@@ -14,7 +14,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from sqlalchemy import Enum as SQLEnum
 
-from app.core.database import Base
+from app.core.infrastructure.database import Base
 
 from app.models.tenant import UtenteRuolo
 

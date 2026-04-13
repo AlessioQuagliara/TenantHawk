@@ -10,8 +10,8 @@ from fastapi import Request, Response
 
 from fastapi.responses import RedirectResponse
 
-from app.core.auth import SESSION_COOKIE_NAME
-from app.core.sessione import gestore_sessioni
+from app.core.security.auth import SESSION_COOKIE_NAME
+from app.core.security.sessione import gestore_sessioni
 from app.core.tenancy import tenant_ha_accesso
 from app.models import Tenant, Utente
 

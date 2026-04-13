@@ -13,9 +13,9 @@ import typer
 from sqlalchemy import select
 
 from app.core.billing import crea_sottoscrizione_trial_tenant
-from app.core.config import settings
-from app.core.database import AsyncSessionLocal
-from app.core.sicurezza import hash_password
+from app.core.infrastructure.config import settings
+from app.core.infrastructure.database import AsyncSessionLocal
+from app.core.security.sicurezza import hash_password
 from app.models import (
     Sottoscrizione,
     Tenant,

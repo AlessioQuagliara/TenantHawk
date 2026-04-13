@@ -26,11 +26,11 @@ from app.core.billing import (
     sincronizza_sottoscrizione_da_stripe,
 )
 
-from app.core.config import settings
+from app.core.infrastructure.config import settings
 
-from app.core.database import get_db
+from app.core.infrastructure.database import get_db
 
-from app.core.email import manda_notifica_sottoscrizione
+from app.core.infrastructure.email import manda_notifica_sottoscrizione
 
 from app.models import Sottoscrizione, Tenant, Utente, UtenteRuolo, UtenteRuoloTenant
 
@@ -122,6 +122,12 @@ async def _sync_from_subscription(
     invoice_paid: bool = False,
 ) -> Sottoscrizione | None:
     subscription_data = _stripe_obj_to_dict(subscription_obj)
+    latest_invoice = _stripe_obj_to_dict(subscription_data.get("latest_invoice"))
+    ultimo_pagamento_ok = (
+        True
+        if invoice_paid
+        else (invoice_pagata_da_subscription_obj(subscription_data) if latest_invoice else None)
+    )
     return await sincronizza_sottoscrizione_da_stripe(
         db,
         tenant_id=tenant_id,
@@ -136,6 +142,7 @@ async def _sync_from_subscription(
         current_period_end_unix=estrai_current_period_end_unix_da_subscription(
             subscription_data
         ),
+        ultimo_pagamento_ok=ultimo_pagamento_ok,
     )
 
 

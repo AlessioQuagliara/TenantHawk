@@ -54,9 +54,9 @@ def _build_route_code(
             from fastapi import APIRouter, Depends, Request
             from fastapi.responses import HTMLResponse
 
-            from app.core.auth import prendi_utente_corrente
-            from app.core.permessi import prendi_ruolo_corrente, richiede_ruolo
-            from app.core.templates import templates
+            from app.core.security.auth import prendi_utente_corrente
+            from app.core.security.permessi import prendi_ruolo_corrente, richiede_ruolo
+            from app.core.infrastructure.templates import templates
             from app.core.tenancy import prendi_tenant_con_accesso
             from app.models import Tenant, Utente, UtenteRuolo
 
@@ -91,9 +91,9 @@ def _build_route_code(
         from fastapi import APIRouter, Depends, Request
         from fastapi.responses import HTMLResponse
 
-        from app.core.auth import prendi_utente_corrente
-        from app.core.permessi import prendi_ruolo_corrente
-        from app.core.templates import templates
+        from app.core.security.auth import prendi_utente_corrente
+        from app.core.security.permessi import prendi_ruolo_corrente
+        from app.core.infrastructure.templates import templates
         from app.core.tenancy import prendi_tenant_con_accesso
         from app.models import Tenant, Utente
 
@@ -261,7 +261,7 @@ def create_admin_module(
                 from sqlalchemy import Integer, String
                 from sqlalchemy.orm import Mapped, mapped_column
 
-                from app.core.database import Base
+                from app.core.infrastructure.database import Base
 
 
                 class {class_name}(Base):

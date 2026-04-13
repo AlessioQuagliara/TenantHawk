@@ -10,9 +10,9 @@ from sqlalchemy import select
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.core.infrastructure.database import get_db
 
-from app.core.sessione import gestore_sessioni
+from app.core.security.sessione import gestore_sessioni
 
 from app.models import Utente
 

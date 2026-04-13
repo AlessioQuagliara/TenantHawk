@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import templates
 
-from app.core.auth import prendi_utente_corrente
+from app.core.security.auth import prendi_utente_corrente
 
 from app.core.billing import (
     estrai_current_period_end_unix_da_subscription,
@@ -36,17 +36,19 @@ from app.core.billing import (
     stripe_configurato,
 )
 
-from app.core.config import settings
+from app.core.infrastructure.config import settings
 
-from app.core.database import get_db
+from app.core.infrastructure.database import get_db
 
-from app.core.email import manda_notifica_sottoscrizione
+from app.core.infrastructure.email import manda_notifica_sottoscrizione
 
-from app.core.permessi import prendi_ruolo_corrente, richiede_ruolo
+from app.core.security.permessi import prendi_ruolo_corrente, richiede_ruolo
 
 from app.core.tenancy import prendi_tenant_corrente
 
 from app.models import Sottoscrizioni, Tenant, Utente, UtenteRuolo
+
+from .template_context import giorni_rimasti_trial_da_sottoscrizione
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -91,6 +93,15 @@ def _clean_stripe_id(value: Any) -> str | None:
     if value_str.lower() in {"none", "null", "undefined"}:
         return None
     return value_str
+
+
+def _to_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _normalizza_data_utc(data: datetime) -> datetime:
@@ -290,13 +301,36 @@ async def sottoscrizioni_page(
     _: None = Depends(richiede_ruolo([UtenteRuolo.SUPERUTENTE])),
     db: AsyncSession = Depends(get_db),
 ):
-    sottoscrizione, cancel_at_period_end, _ = await sincronizza_sottoscrizione_tenant_live(
+    sottoscrizione, cancel_at_period_end, sync_live_ok, live_details = await sincronizza_sottoscrizione_tenant_live(
         db,
         tenant_obj=tenant_obj,
     )
     stato_piano = sottoscrizione.stato_piano.value if sottoscrizione else None
     piano = sottoscrizione.piano.value if sottoscrizione else None
     fine_periodo = sottoscrizione.fine_periodo_corrente if sottoscrizione else None
+    if fine_periodo is None and live_details is not None:
+        current_period_end_unix = _to_int(live_details.get("current_period_end_unix"))
+        if current_period_end_unix is not None:
+            fine_periodo = datetime.fromtimestamp(current_period_end_unix, tz=timezone.utc)
+    stripe_customer_id = (
+        _clean_stripe_id(sottoscrizione.id_stripe_cliente)
+        if sottoscrizione is not None
+        else None
+    )
+    stripe_subscription_id = (
+        _clean_stripe_id(sottoscrizione.id_stripe_sottoscrizione)
+        if sottoscrizione is not None
+        else None
+    )
+    ultimo_pagamento_ok = (
+        bool(live_details["ultimo_pagamento_ok"])
+        if live_details is not None and live_details.get("ultimo_pagamento_ok") is not None
+        else (
+            bool(sottoscrizione.ultimo_pagamento_ok)
+            if sottoscrizione is not None and sottoscrizione.ultimo_pagamento_ok is not None
+            else None
+        )
+    )
     giorni_rimanenti_raw = _giorni_rimanenti(fine_periodo)  # ty:ignore[invalid-argument-type]
     periodo_in_aggiornamento = bool(
         stato_piano == "attivo"
@@ -317,7 +351,15 @@ async def sottoscrizioni_page(
             "stato_piano": stato_piano,
             "piano": piano,
             "fine_periodo": fine_periodo,
+            "stripe_customer_id": stripe_customer_id,
+            "stripe_subscription_id": stripe_subscription_id,
+            "in_tregua": stato_piano == "sospeso" and fine_periodo is not None,
+            "sync_live_ok": sync_live_ok,
+            "ha_pagato_ultimo_rinnovo": ultimo_pagamento_ok,
             "giorni_rimanenti": giorni_rimanenti,
+            "giorni_rimasti_trial": giorni_rimasti_trial_da_sottoscrizione(
+                sottoscrizione
+            ),
             "periodo_in_aggiornamento": periodo_in_aggiornamento,
             "is_trial": stato_piano == "prova",
             "is_attivo": stato_piano == "attivo",
@@ -376,6 +418,12 @@ async def sottoscrizioni_gestisci_page(
                     payment_status=str(checkout_session.get("payment_status") or ""),
                     invoice_paid=invoice_pagata_da_subscription_obj(sub_obj),
                 )
+                latest_invoice = _stripe_obj_to_dict(sub_obj.get("latest_invoice"))
+                ultimo_pagamento_ok = (
+                    invoice_pagata_da_subscription_obj(sub_obj)
+                    if latest_invoice
+                    else None
+                )
                 await sincronizza_sottoscrizione_da_stripe(
                     db,
                     tenant_id=tenant_obj.id,
@@ -384,6 +432,7 @@ async def sottoscrizioni_gestisci_page(
                     stripe_status=status_effettivo,
                     stripe_price_id=_estrai_price_id_da_subscription(sub_obj),
                     current_period_end_unix=_estrai_current_period_end(sub_obj),
+                    ultimo_pagamento_ok=ultimo_pagamento_ok,
                 )
                 await db.commit()
                 sottoscrizione = tenant_obj.sottoscrizione
@@ -398,7 +447,7 @@ async def sottoscrizioni_gestisci_page(
 
     cancel_at_period_end = False
     if stripe_enabled:
-        sottoscrizione, cancel_at_period_end, _ = await sincronizza_sottoscrizione_tenant_live(
+        sottoscrizione, cancel_at_period_end, _, _ = await sincronizza_sottoscrizione_tenant_live(
             db,
             tenant_obj=tenant_obj,
         )
@@ -447,6 +496,9 @@ async def sottoscrizioni_gestisci_page(
             "stato_piano": stato_piano,
             "is_trial": is_trial,
             "ha_sottoscrizione_stripe": ha_sottoscrizione_stripe,
+            "giorni_rimasti_trial": giorni_rimasti_trial_da_sottoscrizione(
+                sottoscrizione
+            ),
             "cancel_at_period_end": cancel_at_period_end,
             "ok": ok,
             "errore": errore,
@@ -544,6 +596,8 @@ async def sottoscrizioni_cambia_piano_submit(
             )
             updated = _stripe_obj_to_dict(updated)
             invoice_paid_flag = invoice_pagata_da_subscription_obj(updated)
+            latest_invoice = _stripe_obj_to_dict(updated.get("latest_invoice"))
+            ultimo_pagamento_ok = invoice_paid_flag if latest_invoice else None
             status_effettivo = stato_stripe_effettivo(
                 str(updated.get("status") or ""),
                 invoice_paid=invoice_paid_flag,
@@ -556,6 +610,7 @@ async def sottoscrizioni_cambia_piano_submit(
                 stripe_status=status_effettivo,
                 stripe_price_id=_estrai_price_id_da_subscription(updated),
                 current_period_end_unix=_estrai_current_period_end(updated),
+                ultimo_pagamento_ok=ultimo_pagamento_ok,
             )
             await db.commit()
             _accoda_notifica_abbonamento(
@@ -615,6 +670,12 @@ async def sottoscrizioni_cambia_piano_submit(
             )
             checkout_session = _stripe_obj_to_dict(checkout_session)
     except Exception:
+        logger.exception(
+            "Errore Stripe checkout/cambio piano. tenant=%s piano=%s customer_id=%s",
+            tenant_slug,
+            piano_enum.value,
+            customer_id,
+        )
         await db.rollback()
         return _redirect_gestisci(
             tenant_slug,
@@ -806,6 +867,12 @@ async def sottoscrizioni_annulla_submit(
             str(updated.get("status") or ""),
             invoice_paid=invoice_pagata_da_subscription_obj(updated),
         )
+        latest_invoice = _stripe_obj_to_dict(updated.get("latest_invoice"))
+        ultimo_pagamento_ok = (
+            invoice_pagata_da_subscription_obj(updated)
+            if latest_invoice
+            else None
+        )
         await sincronizza_sottoscrizione_da_stripe(
             db,
             tenant_id=tenant_id,
@@ -814,6 +881,7 @@ async def sottoscrizioni_annulla_submit(
             stripe_status=status_effettivo,
             stripe_price_id=_estrai_price_id_da_subscription(updated),
             current_period_end_unix=_estrai_current_period_end(updated),
+            ultimo_pagamento_ok=ultimo_pagamento_ok,
         )
         await db.commit()
     except stripe.error.InvalidRequestError as exc:
@@ -912,6 +980,12 @@ async def sottoscrizioni_riattiva_submit(
             str(updated.get("status") or ""),
             invoice_paid=invoice_pagata_da_subscription_obj(updated),
         )
+        latest_invoice = _stripe_obj_to_dict(updated.get("latest_invoice"))
+        ultimo_pagamento_ok = (
+            invoice_pagata_da_subscription_obj(updated)
+            if latest_invoice
+            else None
+        )
         await sincronizza_sottoscrizione_da_stripe(
             db,
             tenant_id=tenant_id,
@@ -920,6 +994,7 @@ async def sottoscrizioni_riattiva_submit(
             stripe_status=status_effettivo,
             stripe_price_id=_estrai_price_id_da_subscription(updated),
             current_period_end_unix=_estrai_current_period_end(updated),
+            ultimo_pagamento_ok=ultimo_pagamento_ok,
         )
         await db.commit()
     except stripe.error.InvalidRequestError as exc:

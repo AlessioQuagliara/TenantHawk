@@ -9,8 +9,8 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
-from app.core.config import settings
-from app.core.database import Base
+from app.core.infrastructure.config import settings
+from app.core.infrastructure.database import Base
 from app.models import Tenant, Utente  # noqa: F401
 
 

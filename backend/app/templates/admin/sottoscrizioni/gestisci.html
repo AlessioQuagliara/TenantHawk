@@ -83,6 +83,7 @@
           action="/{{ tenant.slug }}/admin/sottoscrizioni/gestisci/piano"
           class="mt-5"
           hx-boost="false"
+          hx-disable
           data-loading-submit="true"
         >
           <input type="hidden" name="piano" value="{{ p.key }}">
@@ -107,6 +108,7 @@
         method="post"
         action="/{{ tenant.slug }}/admin/sottoscrizioni/gestisci/portal"
         hx-boost="false"
+        hx-disable
         data-loading-submit="true"
       >
         {% if stripe_enabled %}
@@ -116,7 +118,7 @@
         {% endif %}
       </form>
 
-      <form method="post" action="/{{ tenant.slug }}/admin/sottoscrizioni/gestisci/annulla" data-loading-submit="true">
+      <form method="post" action="/{{ tenant.slug }}/admin/sottoscrizioni/gestisci/annulla" hx-disable data-loading-submit="true">
         {% if stripe_enabled and sottoscrizione and sottoscrizione.id_stripe_sottoscrizione and not cancel_at_period_end %}
           {{ danger_btn("Annulla a fine periodo", type="submit", attrs={"data-loading-text": "Annullamento in corso..."}) }}
         {% else %}
@@ -124,7 +126,7 @@
         {% endif %}
       </form>
 
-      <form method="post" action="/{{ tenant.slug }}/admin/sottoscrizioni/gestisci/riattiva" data-loading-submit="true">
+      <form method="post" action="/{{ tenant.slug }}/admin/sottoscrizioni/gestisci/riattiva" hx-disable data-loading-submit="true">
         {% if stripe_enabled and sottoscrizione and sottoscrizione.id_stripe_sottoscrizione and cancel_at_period_end %}
           {{ primary("Riattiva rinnovo", type="submit", attrs={"data-loading-text": "Riattivazione in corso..."}) }}
         {% else %}

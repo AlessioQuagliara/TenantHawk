@@ -13,8 +13,8 @@ from itsdangerous import URLSafeTimedSerializer
 
 from fastapi import Request
 
-from app.core.config import settings
-from app.core.csrf import csrf_protezione
+from app.core.infrastructure.config import settings
+from app.core.security.csrf import csrf_protezione
 from app.models import Tenant
 
 serializer_conferma_account = URLSafeTimedSerializer(

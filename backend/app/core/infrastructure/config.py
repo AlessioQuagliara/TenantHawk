@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import re
+from urllib.parse import urlsplit
 
 from pydantic import field_validator
 
@@ -38,7 +39,7 @@ class Settings(BaseSettings):
     resend_api_key: str = "re_chiave_presa_da_resend.com"
     reset_email_from: str = "TenantHawk <no-reply@linkbay-cms.com>"
     resend_dev_fallback_from: str = "TenantHawk <onboarding@resend.dev>"
-    app_base_url: str = "http://admin.localhost:8000/auth/login"
+    app_base_url: str = "http://admin.localhost:8000"
     frontend_base_url: str = "http://www.localhost:3000"
 
     # Diamo un taglio! (Mettiamo un limite a redis)
@@ -82,5 +83,42 @@ class Settings(BaseSettings):
         # Ripulisce caratteri finali non validi.
         secret = re.sub(r"[^A-Za-z0-9_]+$", "", secret).strip()
         return secret
+
+    @field_validator("app_base_url", mode="before")
+    @classmethod
+    def _normalizza_app_base_url(cls, value: object) -> str:
+        default = "http://admin.localhost:8000"
+        if value is None:
+            return default
+
+        raw = str(value).strip().strip('"').strip("'")
+        if not raw:
+            return default
+
+        if not re.match(r"^https?://", raw, flags=re.IGNORECASE):
+            raw = f"http://{raw.lstrip('/')}"
+
+        parsed = urlsplit(raw)
+        scheme = (parsed.scheme or "http").lower()
+        netloc = parsed.netloc
+        path = parsed.path or ""
+
+        if not netloc:
+            # Gestione input tipo "admin.localhost:8000/auth/login"
+            fallback = urlsplit(f"http://{raw}")
+            scheme = (fallback.scheme or "http").lower()
+            netloc = fallback.netloc
+            path = fallback.path or ""
+
+        path = path.rstrip("/")
+        for suffix in ("/auth/login", "/auth/register", "/auth/password-recovery"):
+            if path.endswith(suffix):
+                path = path[: -len(suffix)]
+                break
+
+        path = path.rstrip("/")
+        if path:
+            return f"{scheme}://{netloc}{path}"
+        return f"{scheme}://{netloc}"
 
 settings = Settings()

@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from app.core.billing_models import (
+from app.core.billing.billing_models import (
     GIORNI_PROVA_DEFAULT,
     GIORNI_TREGUA_DISATTIVAZIONE,
     LIMITI_UTENTI_PER_PIANO,
@@ -21,7 +21,7 @@ from app.core.billing_models import (
     stripe_live_sync_configurato,
 )
 
-from app.core.billing_sync import (
+from app.core.billing.billing_sync import (
     _errore_stripe_subscription_inesistente,
     _estrai_price_id_da_subscription,
     _scegli_subscription_rilevante,
@@ -34,7 +34,7 @@ from app.core.billing_sync import (
     trova_sottoscrizione_per_riferimenti,
 )
 
-from app.core.billing_policy import (
+from app.core.billing.billing_policy import (
     applica_policy_disattivazione_tenant,
     crea_sottoscrizione_trial_tenant,
     elimina_tenant_e_cascade,

@@ -24,13 +24,13 @@ from app.core import templates
 
 from app.core.billing import crea_sottoscrizione_trial_tenant
 
-from app.core.csrf import csrf_protezione
+from app.core.security.csrf import csrf_protezione
 
-from app.core.database import get_db
+from app.core.infrastructure.database import get_db
 
-from app.core.email import manda_conferma_account
+from app.core.infrastructure.email import manda_conferma_account
 
-from app.core.sicurezza import hash_password, verifica_password_async
+from app.core.security.sicurezza import hash_password, verifica_password_async
 
 from app.models import Tenant, Utente, UtenteRuolo, UtenteRuoloTenant
 

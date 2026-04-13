@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 
 from typing import Any
 
-from app.core.config import settings
+from app.core.infrastructure.config import settings
 
 from app.models import Sottoscrizioni
 

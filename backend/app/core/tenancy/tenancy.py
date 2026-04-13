@@ -16,11 +16,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from sqlalchemy.orm import selectinload
 
-from app.core.auth import prendi_utente_corrente
+from app.core.security.auth import prendi_utente_corrente
 
 from app.core.billing import applica_policy_disattivazione_tenant
 
-from app.core.database import get_db
+from app.core.infrastructure.database import get_db
 
 from app.models import SottoscrizioniStati, Tenant, Utente, UtenteRuoloTenant
 

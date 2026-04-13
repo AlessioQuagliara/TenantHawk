@@ -88,8 +88,34 @@
                 In sincronizzazione con Stripe
               {% elif fine_periodo %}
                 {{ fine_periodo.strftime("%d/%m/%Y %H:%M") }}
+              {% elif sync_live_ok and is_attivo %}
+                In attesa prossimo aggiornamento Stripe
               {% else %}
                 Non impostata
+              {% endif %}
+            </dd>
+          </div>
+          <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/60">
+            <dt class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Stripe Customer ID</dt>
+            <dd class="mt-1 font-mono text-xs text-gray-900 dark:text-white break-all">
+              {{ stripe_customer_id or "N/D" }}
+            </dd>
+          </div>
+          <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/60">
+            <dt class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Stripe Subscription ID</dt>
+            <dd class="mt-1 font-mono text-xs text-gray-900 dark:text-white break-all">
+              {{ stripe_subscription_id or "N/D" }}
+            </dd>
+          </div>
+          <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/60">
+            <dt class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Ultimo rinnovo</dt>
+            <dd class="mt-1 text-base font-semibold text-gray-900 dark:text-white">
+              {% if ha_pagato_ultimo_rinnovo is sameas true %}
+                Pagato
+              {% elif ha_pagato_ultimo_rinnovo is sameas false %}
+                Non pagato
+              {% else %}
+                In verifica
               {% endif %}
             </dd>
           </div>
@@ -100,6 +126,8 @@
                 In aggiornamento
               {% elif giorni_rimanenti is not none %}
                 {{ giorni_rimanenti }}
+              {% elif sync_live_ok and is_attivo %}
+                In attesa allineamento
               {% else %}
                 N/D
               {% endif %}
@@ -159,6 +187,38 @@
             Il piano è stato cancellato dal Billing Portal e terminerà alla fine del periodo corrente.
           </p>
         {% endif %}
+
+        <div class="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/60">
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            Dati Stripe sincronizzati
+          </h3>
+          <dl class="mt-2 space-y-2">
+            <div class="flex items-center justify-between gap-3 text-xs">
+              <dt class="text-gray-500 dark:text-gray-400">Sync live Stripe</dt>
+              <dd class="font-semibold text-gray-900 dark:text-white">
+                {{ "OK" if sync_live_ok else "Solo stato locale" }}
+              </dd>
+            </div>
+            <div class="flex items-center justify-between gap-3 text-xs">
+              <dt class="text-gray-500 dark:text-gray-400">In tregua</dt>
+              <dd class="font-semibold text-gray-900 dark:text-white">
+                {{ "Si" if in_tregua else "No" }}
+              </dd>
+            </div>
+            <div class="flex items-center justify-between gap-3 text-xs">
+              <dt class="text-gray-500 dark:text-gray-400">Ultimo rinnovo pagato</dt>
+              <dd class="font-semibold text-gray-900 dark:text-white">
+                {% if ha_pagato_ultimo_rinnovo is sameas true %}
+                  Si
+                {% elif ha_pagato_ultimo_rinnovo is sameas false %}
+                  No
+                {% else %}
+                  In verifica
+                {% endif %}
+              </dd>
+            </div>
+          </dl>
+        </div>
 
         <div class="mt-5 flex flex-wrap items-center gap-2">
           {{ secondary("Storico pagamenti", attrs={"disabled": "disabled"}) }}

@@ -20,14 +20,14 @@ from app.models import (
     UtenteRuoloTenant,
 )
 
-from app.core.billing_models import (
+from app.core.billing.billing_models import (
     GIORNI_PROVA_DEFAULT,
     _calcola_scadenza_tregua,
     _e_scadenza_tregua,
     _normalizza_data_utc,
 )
 
-from app.core.billing_sync import sincronizza_sottoscrizione_tenant_live
+from app.core.billing.billing_sync import sincronizza_sottoscrizione_tenant_live
 
 
 async def crea_sottoscrizione_trial_tenant(
@@ -141,7 +141,7 @@ async def applica_policy_disattivazione_tenant(
         return False
 
     # Safety check: prima di azioni distruttive, allinea sempre stato live da Stripe.
-    sottoscrizione, _, verifica_live_ok = await sincronizza_sottoscrizione_tenant_live(
+    sottoscrizione, _, verifica_live_ok, _ = await sincronizza_sottoscrizione_tenant_live(
         db,
         tenant_obj=tenant_obj,
     )
@@ -202,7 +202,7 @@ async def applica_policy_disattivazione_tenant(
             return False
 
         # Ultima verifica live su Stripe prima delete definitivo.
-        sottoscrizione, _, verifica_live_ok = await sincronizza_sottoscrizione_tenant_live(
+        sottoscrizione, _, verifica_live_ok, _ = await sincronizza_sottoscrizione_tenant_live(
             db,
             tenant_obj=tenant_obj,
         )

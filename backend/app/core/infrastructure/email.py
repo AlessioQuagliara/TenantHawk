@@ -14,11 +14,11 @@ import resend
 
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound, select_autoescape
 
-from app.core.config import settings
+from app.core.infrastructure.config import settings
 
 logger = logging.getLogger(__name__)
 
-_EMAIL_TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "email"
+_EMAIL_TEMPLATE_DIR = Path(__file__).resolve().parents[2] / "email"
 _email_templates = Environment(
     loader=FileSystemLoader(str(_EMAIL_TEMPLATE_DIR)),
     autoescape=select_autoescape(["html", "xml"]),

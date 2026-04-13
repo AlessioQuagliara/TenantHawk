@@ -8,11 +8,11 @@ from enum import Enum
 
 from sqlalchemy import Enum as SQLEnum
 
-from sqlalchemy import String, DateTime, func, ForeignKey
+from sqlalchemy import String, DateTime, func, ForeignKey, Boolean
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.database import Base
+from app.core.infrastructure.database import Base
 
 from typing import TYPE_CHECKING
 
@@ -83,6 +83,11 @@ class Sottoscrizione(Base):
 
     fine_periodo_corrente: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True),
+        nullable=True,
+    )
+
+    ultimo_pagamento_ok: Mapped[bool | None] = mapped_column(
+        Boolean,
         nullable=True,
     )
 

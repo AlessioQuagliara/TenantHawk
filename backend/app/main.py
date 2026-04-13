@@ -12,7 +12,7 @@ import stripe  # ty:ignore[unresolved-import]
 
 from app.core import settings
 
-from app.core.sessione import gestore_sessioni
+from app.core.security.sessione import gestore_sessioni
 
 from contextlib import asynccontextmanager
 
@@ -20,7 +20,7 @@ from fastapi import FastAPI, Request
 
 from app.core import engine
 
-from app.core.gestione_errori import registra_handler_globali
+from app.core.infrastructure.gestione_errori import registra_handler_globali
 
 from app.routes import router as api_router
 
@@ -105,7 +105,7 @@ def create_app() -> FastAPI:
                                 "base-uri 'self'; "
                                 "object-src 'none'; "
                                 "frame-ancestors 'none'; "
-                                "form-action 'self'; "
+                                "form-action 'self' https://checkout.stripe.com https://billing.stripe.com; "
                                 "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://unpkg.com; "
                                 "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
                                 "img-src 'self' data: https:; "

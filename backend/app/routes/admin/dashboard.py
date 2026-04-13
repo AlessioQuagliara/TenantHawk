@@ -10,13 +10,15 @@ from fastapi.responses import HTMLResponse
 
 from app.core import templates
 
-from app.core.permessi import prendi_ruolo_corrente
+from app.core.security.permessi import prendi_ruolo_corrente
 
 from app.core.tenancy import prendi_tenant_con_accesso
 
-from app.core.auth import prendi_utente_corrente
+from app.core.security.auth import prendi_utente_corrente
 
 from app.models import Tenant, Utente
+
+from .template_context import giorni_rimasti_trial_da_sottoscrizione
 
 router = APIRouter()
 
@@ -38,5 +40,8 @@ async def dashboard_page(
             "tenant": tenant_obj,
             "utente": utente_corrente,
             "ruolo_corrente": ruolo_corrente,
+            "giorni_rimasti_trial": giorni_rimasti_trial_da_sottoscrizione(
+                tenant_obj.sottoscrizione
+            ),
         },
     )

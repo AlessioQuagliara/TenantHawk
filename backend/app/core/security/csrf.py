@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 
-from app.core.config import settings
+from app.core.infrastructure.config import settings
 
 
 # Token CSRF firmati con scadenza temporale

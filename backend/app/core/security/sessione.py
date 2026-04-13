@@ -14,7 +14,7 @@ from typing import Any
 
 import redis.asyncio as asredit
 
-from app.core.config import settings
+from app.core.infrastructure.config import settings
 
 class SessionManager:
 

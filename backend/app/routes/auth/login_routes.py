@@ -22,15 +22,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import templates
 
-from app.core.auth import SESSION_COOKIE_NAME
+from app.core.security.auth import SESSION_COOKIE_NAME
 
-from app.core.csrf import csrf_protezione
+from app.core.security.csrf import csrf_protezione
 
-from app.core.database import get_db
+from app.core.infrastructure.database import get_db
 
-from app.core.sessione import gestore_sessioni
+from app.core.security.sessione import gestore_sessioni
 
-from app.core.sicurezza import verifica_password_async
+from app.core.security.sicurezza import verifica_password_async
 
 from app.models import Utente
 

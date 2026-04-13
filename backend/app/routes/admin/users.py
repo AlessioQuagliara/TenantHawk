@@ -24,23 +24,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import templates
 
-from app.core.auth import prendi_utente_corrente
+from app.core.security.auth import prendi_utente_corrente
 
-from app.core.config import settings
+from app.core.infrastructure.config import settings
 
-from app.core.database import get_db
+from app.core.infrastructure.database import get_db
 
-from app.core.email import manda_invito_utente
+from app.core.infrastructure.email import manda_invito_utente
 
-from app.core.permessi import prendi_ruolo_corrente, richiede_ruolo
+from app.core.security.permessi import prendi_ruolo_corrente, richiede_ruolo
 
-from app.core.sicurezza import hash_password
+from app.core.security.sicurezza import hash_password
 
 from app.core.tenancy import prendi_tenant_con_accesso
 
 from app.models import Tenant, Utente, UtenteRuolo, UtenteRuoloTenant
 
 from app.core.billing import max_utenti_per_piano
+
+from .template_context import giorni_rimasti_trial_da_sottoscrizione
 
 router = APIRouter()
 
@@ -246,6 +248,9 @@ async def users_index(
             "tenant": tenant_obj,
             "utente": utente_corrente,
             "ruolo_corrente": ruolo_corrente,
+            "giorni_rimasti_trial": giorni_rimasti_trial_da_sottoscrizione(
+                tenant_obj.sottoscrizione
+            ),
             "users": rows,
             "ruoli_disponibili": [ruolo.value for ruolo in _RUOLI_GESTIBILI],
             "search_value": search,

@@ -14,7 +14,7 @@ from sqlalchemy import select
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
+from app.core.infrastructure.config import settings
 
 from app.models import (
     Sottoscrizione,
@@ -23,7 +23,7 @@ from app.models import (
     Tenant,
 )
 
-from app.core.billing_models import (
+from app.core.billing.billing_models import (
     _calcola_scadenza_tregua,
     _e_scadenza_tregua,
     _normalizza_data_utc,
@@ -224,7 +224,7 @@ async def sincronizza_sottoscrizione_tenant_live(
     db: AsyncSession,
     *,
     tenant_obj: Tenant,
-) -> tuple[Sottoscrizione | None, bool, bool]:
+) -> tuple[Sottoscrizione | None, bool, bool, dict[str, Any] | None]:
     tenant_id = tenant_obj.id
     risultato_sottoscrizione = await db.execute(
         select(Sottoscrizione)
@@ -233,11 +233,12 @@ async def sincronizza_sottoscrizione_tenant_live(
     )
     sottoscrizione = risultato_sottoscrizione.scalar_one_or_none()
     if not stripe_live_sync_configurato() or sottoscrizione is None:
-        return sottoscrizione, False, False
+        return sottoscrizione, False, False, None
 
     sub_obj: dict[str, Any] | None = None
     cancel_at_period_end = False
     verifica_live_ok = False
+    live_details: dict[str, Any] | None = None
 
     if sottoscrizione.id_stripe_sottoscrizione:
         try:
@@ -254,7 +255,7 @@ async def sincronizza_sottoscrizione_tenant_live(
             verifica_live_ok = True
         except stripe.error.InvalidRequestError as exc:
             if not _errore_stripe_subscription_inesistente(exc):
-                return None, False, False
+                return None, False, False, None
             try:
                 sottoscrizione.id_stripe_sottoscrizione = None
                 await db.commit()
@@ -271,7 +272,7 @@ async def sincronizza_sottoscrizione_tenant_live(
             sub_obj = _scegli_subscription_rilevante(elenco)
             verifica_live_ok = True
         except Exception:
-            return None, False, False
+            return None, False, False, None
 
     if sub_obj is None:
         if verifica_live_ok and sottoscrizione is not None:
@@ -300,31 +301,47 @@ async def sincronizza_sottoscrizione_tenant_live(
                     await db.commit()
                 except Exception:
                     await db.rollback()
-                    return None, False, False
-        return sottoscrizione, False, verifica_live_ok
+                    return None, False, False, None
+        return sottoscrizione, False, verifica_live_ok, None
 
     try:
+        current_period_end_unix = estrai_current_period_end_unix_da_subscription(sub_obj)
+        latest_invoice = _obj_to_dict(sub_obj.get("latest_invoice"))
+        ultimo_pagamento_ok = (
+            invoice_pagata_da_subscription_obj(sub_obj) if latest_invoice else None
+        )
+        stripe_status_effettivo = stato_stripe_effettivo(
+            str(sub_obj.get("status") or ""),
+            invoice_paid=bool(ultimo_pagamento_ok),
+        )
         sottoscrizione_aggiornata = await sincronizza_sottoscrizione_da_stripe(
             db,
             tenant_id=tenant_id,
             stripe_subscription_id=_str_or_none(sub_obj.get("id")),
             stripe_customer_id=_str_or_none(sub_obj.get("customer")),
-            stripe_status=stato_stripe_effettivo(
-                str(sub_obj.get("status") or ""),
-                invoice_paid=invoice_pagata_da_subscription_obj(sub_obj),
-            ),
+            stripe_status=stripe_status_effettivo,
             stripe_price_id=_estrai_price_id_da_subscription(sub_obj),
-            current_period_end_unix=estrai_current_period_end_unix_da_subscription(sub_obj),
+            current_period_end_unix=current_period_end_unix,
+            ultimo_pagamento_ok=ultimo_pagamento_ok,
         )
         await db.commit()
         if sottoscrizione_aggiornata is not None:
             sottoscrizione = sottoscrizione_aggiornata
         cancel_at_period_end = bool(sub_obj.get("cancel_at_period_end"))
+        live_details = {
+            "current_period_end_unix": current_period_end_unix,
+            "ultimo_pagamento_ok": ultimo_pagamento_ok,
+            "stripe_status_effettivo": stripe_status_effettivo,
+            "stripe_status_raw": _str_or_none(sub_obj.get("status")),
+            "stripe_customer_id": _str_or_none(sub_obj.get("customer")),
+            "stripe_subscription_id": _str_or_none(sub_obj.get("id")),
+            "cancel_at_period_end": cancel_at_period_end,
+        }
     except Exception:
         await db.rollback()
-        return None, False, False
+        return None, False, False, None
 
-    return sottoscrizione, cancel_at_period_end, verifica_live_ok
+    return sottoscrizione, cancel_at_period_end, verifica_live_ok, live_details
 
 
 async def trova_sottoscrizione_per_riferimenti(
@@ -374,6 +391,7 @@ async def sincronizza_sottoscrizione_da_stripe(
     stripe_status: str | None = None,
     stripe_price_id: str | None = None,
     current_period_end_unix: int | None = None,
+    ultimo_pagamento_ok: bool | None = None,
 ) -> Sottoscrizione | None:
     row = await trova_sottoscrizione_per_riferimenti(
         db,
@@ -399,6 +417,7 @@ async def sincronizza_sottoscrizione_da_stripe(
             piano=piano,
             stato_piano=stato,
             fine_periodo_corrente=fine_periodo,
+            ultimo_pagamento_ok=ultimo_pagamento_ok,
             id_stripe_cliente=stripe_customer_id,
             id_stripe_sottoscrizione=stripe_subscription_id,
         )
@@ -415,11 +434,6 @@ async def sincronizza_sottoscrizione_da_stripe(
             # Trial realmente concluso: scade lato interno.
             if stato == SottoscrizioniStati.PROVA:
                 stato = SottoscrizioniStati.SCADUTO
-            # Per ATTIVO ci fidiamo del risultato Stripe gia' normalizzato
-            # (stato_stripe_effettivo): non forziamo una sospensione locale
-            # solo per current_period_end nel passato.
-            elif stato == SottoscrizioniStati.ATTIVO:
-                fine_periodo = None
 
     if stato == SottoscrizioniStati.SOSPESO:
         fine_corrente_utc = _normalizza_data_utc(row.fine_periodo_corrente)
@@ -442,9 +456,11 @@ async def sincronizza_sottoscrizione_da_stripe(
         row.fine_periodo_corrente = fallback_grace_deadline
     elif fine_periodo is not None:
         row.fine_periodo_corrente = fine_periodo
-    elif stripe_status and stato != SottoscrizioniStati.SOSPESO:
-        # Evita date stale (es. resta il vecchio "14 giorni trial" dopo passaggio a Stripe)
+    elif stato in {SottoscrizioniStati.SCADUTO, SottoscrizioniStati.CANCELLATO}:
+        # Per stati terminali azzeriamo la data.
         row.fine_periodo_corrente = None
+    if ultimo_pagamento_ok is not None:
+        row.ultimo_pagamento_ok = bool(ultimo_pagamento_ok)
     if stripe_customer_id:
         row.id_stripe_cliente = stripe_customer_id
     if stripe_subscription_id:

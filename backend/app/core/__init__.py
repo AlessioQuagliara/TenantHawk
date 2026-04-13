@@ -2,8 +2,8 @@
 # backend/app/core/__init__.py
 # =============================================================================
 
-from .config import settings
-from .templates import templates
-from .database import engine, Base
+from .infrastructure.config import settings
+from .infrastructure.database import Base, engine
+from .infrastructure.templates import templates
 
-__all__ = ["settings", "templates", "engine", "Base", ]
+__all__ = ["settings", "templates", "engine", "Base"]

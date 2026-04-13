@@ -16,8 +16,8 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.core.config import settings
-from app.core.templates import templates
+from app.core.infrastructure.config import settings
+from app.core.infrastructure.templates import templates
 
 logger = logging.getLogger(__name__)
 
