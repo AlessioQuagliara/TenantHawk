@@ -1,0 +1,13 @@
+Esempio uso:
+  chmod +x ./stress_crow.sh
+  ./stress_crow.sh http://localhost:18080
+
+Con parametri custom:
+  CONCURRENCY=200 DURATION=60 ./stress_crow.sh http://localhost:18080
+
+Override del path o della versione HTTP:
+  PATHS_CSV='/controlli/health' HTTP_VERSION='--http1.1' ./stress_crow.sh http://localhost:18080
+
+In parallelo, monitora Docker:
+  docker stats
+  docker logs -f saas_backend
